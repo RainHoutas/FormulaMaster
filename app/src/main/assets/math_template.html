@@ -34,16 +34,19 @@
 </style>
 </head>
 <body>
-<div id="formula"></div>
+<!-- LaTeX 通过 data 属性传入，避免反斜杠在 JS 字符串字面量中被解析为转义序列 -->
+<div id="formula" data-latex="{{LATEX}}"></div>
 <script>
+  var el = document.getElementById("formula");
+  var latex = el.getAttribute("data-latex");
   try {
-    katex.render("{{LATEX}}", document.getElementById("formula"), {
+    katex.render(latex, el, {
       throwOnError: false,
       displayMode: true,
       trust: false
     });
   } catch (e) {
-    document.getElementById("formula").textContent = "{{LATEX}}";
+    el.textContent = latex;
   }
 </script>
 </body>

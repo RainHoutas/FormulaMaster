@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -18,10 +20,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import com.example.formulamaster.ui.component.MathFormulaView
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -59,6 +64,7 @@ private const val NAV_ANIM_DURATION = 300
 // ── MainScreen ────────────────────────────────────────────────────────────────
 
 @Composable
+@Preview
 fun MainScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -135,7 +141,17 @@ fun MainScreen() {
 
 @Composable
 private fun MemoryPlaceholder() {
-    PlaceholderScreen(label = "TODO: Memory（记忆模块）")
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        MathFormulaView(
+            latex = "\\int_0^1 x^2 \\, dx = \\frac{1}{3}",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+        )
+    }
 }
 
 @Composable
