@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 震动反馈（临摹描红 / 错误惩罚） -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 通知权限（Android 13+ 运行时权限，Task 6.1 动态申请；此处先静态声明） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
