@@ -1,7 +1,7 @@
 package com.example.formulamaster.ui.screen
 
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,10 +57,6 @@ private val tabs = listOf(
     TopLevelTab(AppRoute.Test,   "测试", Icons.Filled.Edit,      Icons.Outlined.Edit)
 )
 
-// ── 动画常量 ──────────────────────────────────────────────────────────────────
-
-private const val NAV_ANIM_DURATION = 300
-
 // ── MainScreen ────────────────────────────────────────────────────────────────
 
 @Composable
@@ -105,30 +101,11 @@ fun MainScreen() {
             navController = navController,
             startDestination = AppRoute.Memory.route,
             modifier = Modifier.padding(innerPadding),
-            enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                )
-            },
-            exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                )
-            },
-            popEnterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                )
-            },
-            popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                )
-            }
+            // Tab 切换无动画——方向不定，slide 会错乱；子页面路由各自声明 slide
+            enterTransition    = { EnterTransition.None },
+            exitTransition     = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition  = { ExitTransition.None }
         ) {
             composable(AppRoute.Memory.route) { MemoryPlaceholder() }
             composable(AppRoute.Review.route) { ReviewPlaceholder() }

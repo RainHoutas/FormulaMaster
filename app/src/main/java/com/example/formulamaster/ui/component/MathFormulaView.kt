@@ -2,7 +2,7 @@ package com.example.formulamaster.ui.component
 
 import android.graphics.Color
 import android.webkit.WebView
-import android.webkit.WebSettings
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -14,9 +14,10 @@ import androidx.compose.ui.viewinterop.AndroidView
  *
  * 从 assets/math_template.html 读取模板，将 [latex] 注入后通过 WebView 渲染。
  * 使用 loadDataWithBaseURL 确保本地 KaTeX 资源（JS/CSS/字体）可被正常加载。
- * 深色模式由 CSS @media (prefers-color-scheme: dark) 自动适配（Android 10+）。
+ * 深色模式由 Compose 端读取 isSystemInDarkTheme() 后注入 CSS class，
+ * 不依赖 WebView 自身的 prefers-color-scheme 支持（各厂商 ROM 实现不一致）。
  *
- * @param latex  LaTeX 源码字符串，无需包裹 $$ 符号，组件已启用 displayMode
+ * @param latex    LaTeX 源码，无需包裹 $$ 符号，组件已启用 displayMode
  * @param modifier Compose Modifier
  */
 @Composable
@@ -25,6 +26,7 @@ fun MathFormulaView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
 
     val template = remember {
         context.assets.open("math_template.html")
@@ -38,18 +40,18 @@ fun MathFormulaView(
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
-                    // 允许通过 file:// URL 访问本地 assets（KaTeX JS/CSS/字体）
                     @Suppress("DEPRECATION")
                     allowFileAccessFromFileURLs = true
                 }
-                // 背景透明，与 Compose Surface 完美融合
                 setBackgroundColor(Color.TRANSPARENT)
             }
         },
         update = { webView ->
-            val html = template.replace("{{LATEX}}", latex.escapeForHtmlAttribute())
+            val html = template
+                .replace("{{LATEX}}", latex.escapeForHtmlAttribute())
+                .replace("{{THEME}}", if (isDark) "dark" else "light")
             webView.loadDataWithBaseURL(
-                "file:///android_asset/",   // baseUrl：让 KaTeX 能加载本地资源
+                "file:///android_asset/",
                 html,
                 "text/html",
                 "UTF-8",
@@ -61,10 +63,8 @@ fun MathFormulaView(
 }
 
 /**
- * 将 LaTeX 字符串 HTML 属性转义。
- *
- * LaTeX 中 \frac、\int 等反斜杠无需转义（HTML 属性允许），
- * 只需处理 & < > " 四个 HTML 特殊字符，避免破坏 data-latex 属性的引号边界。
+ * HTML 属性转义：处理 & < > " 四个特殊字符。
+ * LaTeX 中的反斜杠在 HTML 属性中无需转义。
  */
 private fun String.escapeForHtmlAttribute(): String = this
     .replace("&", "&amp;")

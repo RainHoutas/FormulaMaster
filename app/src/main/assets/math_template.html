@@ -25,15 +25,12 @@
     overflow-x: auto;
   }
 
-  /* 深色模式：背景透明，公式字体变为浅色 */
-  @media (prefers-color-scheme: dark) {
-    body { background-color: transparent; }
-    #formula { color: #E3E2E6; }
-    .katex { color: #E3E2E6; }
-  }
+  /* 深色模式：由 Kotlin 端注入 class="dark"，不依赖 WebView 的 prefers-color-scheme 支持 */
+  body.dark #formula,
+  body.dark .katex { color: #E3E2E6; }
 </style>
 </head>
-<body>
+<body class="{{THEME}}">
 <!-- LaTeX 通过 data 属性传入，避免反斜杠在 JS 字符串字面量中被解析为转义序列 -->
 <div id="formula" data-latex="{{LATEX}}"></div>
 <script>
