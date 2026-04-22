@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="file:///android_asset/katex/katex.min.css">
+<script src="file:///android_asset/katex/katex.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 8px 12px;
+  }
+
+  #formula {
+    color: #1A1C1E;
+    font-size: 1.4em;
+    line-height: 1.6;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  /* 深色模式：背景透明，公式字体变为浅色 */
+  @media (prefers-color-scheme: dark) {
+    body { background-color: transparent; }
+    #formula { color: #E3E2E6; }
+    .katex { color: #E3E2E6; }
+  }
+</style>
+</head>
+<body>
+<div id="formula"></div>
+<script>
+  try {
+    katex.render("{{LATEX}}", document.getElementById("formula"), {
+      throwOnError: false,
+      displayMode: true,
+      trust: false
+    });
+  } catch (e) {
+    document.getElementById("formula").textContent = "{{LATEX}}";
+  }
+</script>
+</body>
+</html>
