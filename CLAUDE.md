@@ -22,7 +22,25 @@ ui/viewmodel/        → ViewModel
 ui/theme/            → Material 3 主题
 
 ## 当前进度
-参见 TODO.md，按 Sprint 顺序执行，当前从 Sprint 1 Task 1.1 开始
+
+**阶段**：原型阶段已完成（2026-04-24 收尾），**当前进行中：打磨完善阶段 · Sprint 1**（手写识别真实落地）。
+
+## 🚨 新对话开工前必读（强制顺序）
+
+按顺序读取以下文件，缺一不可：
+
+1. **`memory/HANDOFF_TO_NEXT_SESSION.md`** — 对话模式约定、工作流、项目定位、Sprint 1 速览、踩坑清单
+2. **`docs/phases/02_打磨阶段_TODO.md`** — 当前 Sprint 的 Task 清单与 Done 标准
+3. **`docs/改进点池.md`** — 新想法集散地、分类标签、已拒绝决策（含 L2 搁置原因）
+4. **`TODO.md`**（项目根） — 指针文件，确认文档结构
+
+读完这四个文件，你就知道：
+- 当前该做什么（Sprint 1 Task 列表）
+- 用户冒出新想法时往哪里写（改进点池"待评估"分区，**不打断当前 Sprint**）
+- 用户说"开新 Sprint"时怎么规划（扫改进点池 → 按 `(优先级 ASC, 时间 ASC)` 排序 → 取 TOP 4-8 询问确认）
+- 哪些决策已经做过（L2 自训练已搁置、三路识别器并列、用户自填 API Key）
+
+**铁律**：涉及方案选择（如设置页位置、API 默认选哪个）必须先问用户再动手，不要替用户做决策。
 
 ## M3 组件规范（必须遵守）
 - 卡片：ElevatedCard + RoundedCornerShape(16.dp)

@@ -32,6 +32,12 @@ interface StudyStateDao {
     fun getTodayReviewQueue(currentTime: Long): Flow<List<StudyStateEntity>>
 
     /**
+     * 所有学习状态（用于 MemoryViewModel 合并公式列表）
+     */
+    @Query("SELECT * FROM study_states")
+    fun getAllStates(): Flow<List<StudyStateEntity>>
+
+    /**
      * 已掌握的公式列表（learningState = 3），供 Test 模块使用
      */
     @Query("SELECT * FROM study_states WHERE learningState = 3")
@@ -48,4 +54,11 @@ interface StudyStateDao {
      */
     @Query("UPDATE study_states SET nextReviewTime = :currentTime WHERE learningState = 3")
     suspend fun resetMasteredReviewTime(currentTime: Long)
+
+    /**
+     * Task 5.4：顽固难点（Leech）一键延后 N 天
+     * 冲刺期对 lapses ≥ 4 的公式再次遗忘时，允许用户"跳过本周"
+     */
+    @Query("UPDATE study_states SET nextReviewTime = :nextReviewTime WHERE formulaId = :id")
+    suspend fun setNextReviewTime(id: String, nextReviewTime: Long)
 }

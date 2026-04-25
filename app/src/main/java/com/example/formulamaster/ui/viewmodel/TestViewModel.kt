@@ -1,0 +1,190 @@
+package com.example.formulamaster.ui.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.formulamaster.data.local.AppDatabase
+import com.example.formulamaster.data.local.dao.ReviewLogDao
+import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.local.entity.ReviewLogEntity
+import com.example.formulamaster.data.repository.FormulaRepository
+import com.example.formulamaster.domain.ReviewScheduler
+import com.example.formulamaster.domain.model.FormulaWithState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+// ── UiState ───────────────────────────────────────────────────────────────────
+
+data class TestUiState(
+    val queue: List<FormulaWithState> = emptyList(),
+    val currentIndex: Int = 0,
+    val completedCount: Int = 0,
+    val isLoading: Boolean = true,
+    /** 当前题答题区：从 TestCanvas 候选拼接而来的 LaTeX 片段 */
+    val answerPieces: List<String> = emptyList()
+) {
+    val currentItem: FormulaWithState?
+        get() = queue.getOrNull(currentIndex)
+
+    val isSessionComplete: Boolean
+        get() = !isLoading && queue.isNotEmpty() && completedCount >= queue.size
+
+    val canSubmit: Boolean
+        get() = answerPieces.isNotEmpty()
+}
+
+// ── ViewModel ─────────────────────────────────────────────────────────────────
+//
+// 测试模块（严测）核心状态机：
+//   - 数据源：已掌握 (learningState == 3) 的公式
+//   - 会话队列首次加载后冻结，防止评分落库后列表跳动
+//   - 答题区状态（answerPieces）上升到 VM，输入组件切换（手写→键盘→结构化）时
+//     下层组件只需向 VM 回传 LaTeX 片段，VM 自身无关输入方式
+
+class TestViewModel(
+    private val repository: FormulaRepository,
+    private val studyStateDao: StudyStateDao,
+    private val reviewLogDao: ReviewLogDao
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(TestUiState())
+    val uiState: StateFlow<TestUiState> = _uiState.asStateFlow()
+
+    // 会话队列快照：首次加载后冻结
+    private var sessionItems: List<FormulaWithState>? = null
+
+    init {
+        viewModelScope.launch {
+            combine(
+                repository.getAll(),
+                studyStateDao.getMasteredFormulas()
+            ) { formulas, states ->
+                val formulaMap = formulas.associateBy { it.formulaId }
+                states.mapNotNull { state ->
+                    formulaMap[state.formulaId]?.let { formula ->
+                        FormulaWithState(formula, state)
+                    }
+                }
+            }.collect { queue ->
+                if (sessionItems == null) {
+                    sessionItems = queue
+                }
+                _uiState.update {
+                    it.copy(queue = sessionItems!!, isLoading = false)
+                }
+            }
+        }
+    }
+
+    // ── 答题区操作 ────────────────────────────────────────────────────────────
+
+    fun appendPiece(latex: String) {
+        _uiState.update { it.copy(answerPieces = it.answerPieces + latex) }
+    }
+
+    fun popLastPiece() {
+        _uiState.update {
+            if (it.answerPieces.isEmpty()) it
+            else it.copy(answerPieces = it.answerPieces.dropLast(1))
+        }
+    }
+
+    fun clearAnswer() {
+        _uiState.update { it.copy(answerPieces = emptyList()) }
+    }
+
+    // ── Task 5.3：严厉裁决 ────────────────────────────────────────────────────
+    //
+    // 完全正确 → rating=4 + isTestMode=true（S 额外 ×1.5 奖励）
+    // 出现错误 → rating=1 + isTestMode=true（强制 learningState=1，S 清零重置，lapses++）
+    //
+    // 写入 ReviewLog（interactionType=3），自动推进到下一题。
+    fun submitJudgment(
+        item: FormulaWithState,
+        isCorrect: Boolean,
+        costTimeMs: Long
+    ) {
+        val studyState = item.studyState ?: return
+        val rating = if (isCorrect) 4 else 1
+        val nowMs = System.currentTimeMillis()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. FSRS 调度（测试模式）
+            val result = ReviewScheduler.calculate(
+                current       = studyState,
+                rating        = rating,
+                isTestMode    = true,
+                currentTimeMs = nowMs
+            )
+
+            // 2. 连续好评计数：出错强制降级时清零，正确时保留
+            val newConsecutive = if (rating == 1) 0 else studyState.consecutiveGoodReviews
+
+            // 3. 更新 StudyStateEntity
+            studyStateDao.update(
+                studyState.copy(
+                    learningState          = result.newLearningState,
+                    difficulty             = result.newDifficulty,
+                    stability              = result.newStability,
+                    lastReviewTime         = nowMs,
+                    nextReviewTime         = result.nextReviewTime,
+                    lapses                 = result.newLapses,
+                    totalReviews           = studyState.totalReviews + 1,
+                    consecutiveGoodReviews = newConsecutive
+                )
+            )
+
+            // 4. 写入测试流水日志（interactionType = 3）
+            reviewLogDao.insert(
+                ReviewLogEntity(
+                    formulaId       = item.formula.formulaId,
+                    reviewTime      = nowMs,
+                    interactionType = 3,
+                    userRating      = rating,
+                    costTimeMs      = costTimeMs
+                )
+            )
+
+            // 5. 推进到下一题 + 清空答题区
+            _uiState.update {
+                val next = it.currentIndex + 1
+                it.copy(
+                    currentIndex   = next.coerceAtMost(it.queue.size),
+                    completedCount = it.completedCount + 1,
+                    answerPieces   = emptyList()
+                )
+            }
+        }
+    }
+
+    // ── Task 5.4：顽固难点延后一周 ────────────────────────────────────────────
+    //
+    // 冲刺期对 lapses≥4 的 Leech 再次遗忘时，允许用户"跳过本周"暂避锋芒。
+    // 仅推后 nextReviewTime，不改 stability/difficulty/lapses（已由 submitJudgment 正常落库）。
+    fun postponeByWeek(formulaId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val s = studyStateDao.getByFormulaId(formulaId) ?: return@launch
+            studyStateDao.setNextReviewTime(formulaId, s.nextReviewTime + 7 * 86_400_000L)
+        }
+    }
+
+    companion object {
+        fun factory(context: Context) = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val db = AppDatabase.getInstance(context.applicationContext)
+                return TestViewModel(
+                    FormulaRepository(context.applicationContext, db.formulaDao()),
+                    db.studyStateDao(),
+                    db.reviewLogDao()
+                ) as T
+            }
+        }
+    }
+}

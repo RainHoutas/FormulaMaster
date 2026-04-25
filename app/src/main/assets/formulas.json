@@ -1,0 +1,68 @@
+[
+  {
+    "formulaId": "calc_taylor_01",
+    "subject": "高数",
+    "chapter": "一元函数微积分",
+    "title": "泰勒展开式（Maclaurin 形式）",
+    "latexCode": "f(x)=\\sum_{n=0}^{\\infty}\\frac{f^{(n)}(0)}{n!}x^{n}",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"\\\\frac{f^{(n)}(0)}{n!}\",\"options\":[\"\\\\frac{f^{(n)}(0)}{n!}\",\"\\\\frac{f^{(n)}(0)}{(n+1)!}\",\"\\\\frac{f'(0)}{n!}\",\"\\\\frac{f^{(n)}(x)}{n!}\"]},{\"index\":2,\"placeholder\":\"x^{n}\",\"options\":[\"x^{n}\",\"x^{n+1}\",\"(x-a)^{n}\",\"n x\"]}]",
+    "derivationSteps": "[\"设 f(x) 在 x=0 处任意阶可导\",\"对 f(x) 在 x=0 处做幂级数展开\",\"比较系数得 a_n = f^{(n)}(0)/n!\"]",
+    "tags": "级数展开,求极限,近似计算",
+    "difficultyLevel": 4
+  },
+  {
+    "formulaId": "calc_lhopital_01",
+    "subject": "高数",
+    "chapter": "极限与连续",
+    "title": "洛必达法则（0/0 型）",
+    "latexCode": "\\lim_{x\\to a}\\frac{f(x)}{g(x)}=\\lim_{x\\to a}\\frac{f'(x)}{g'(x)}",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"\\\\frac{f'(x)}{g'(x)}\",\"options\":[\"\\\\frac{f'(x)}{g'(x)}\",\"\\\\frac{f(x)}{g'(x)}\",\"\\\\frac{f'(x)}{g(x)}\",\"(f(x)g(x))'\"]}]",
+    "derivationSteps": "[\"设 f(a)=g(a)=0 且在 a 的去心邻域可导\",\"由柯西中值定理得 f(x)/g(x)=f'(ξ)/g'(ξ)\",\"令 x→a 即得结论\"]",
+    "tags": "求极限,未定式",
+    "difficultyLevel": 2
+  },
+  {
+    "formulaId": "calc_newton_leibniz_01",
+    "subject": "高数",
+    "chapter": "一元函数积分学",
+    "title": "牛顿-莱布尼茨公式",
+    "latexCode": "\\int_{a}^{b} f(x)\\,dx = F(b)-F(a)",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"F(b)-F(a)\",\"options\":[\"F(b)-F(a)\",\"F(a)-F(b)\",\"F'(b)-F'(a)\",\"F(b)+F(a)\"]}]",
+    "derivationSteps": "[\"设 F(x) 为 f(x) 的一个原函数\",\"利用变限积分函数 Φ(x)=∫_a^x f(t)dt 的求导结论\",\"得到 Φ(x)=F(x)-F(a)，令 x=b 即证\"]",
+    "tags": "定积分计算,基本定理",
+    "difficultyLevel": 1
+  },
+  {
+    "formulaId": "la_det_expansion_01",
+    "subject": "线代",
+    "chapter": "行列式",
+    "title": "行列式按行展开（拉普拉斯展开）",
+    "latexCode": "\\det(A)=\\sum_{j=1}^{n}(-1)^{i+j}a_{ij}M_{ij}",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"(-1)^{i+j}\",\"options\":[\"(-1)^{i+j}\",\"(-1)^{i}\",\"(-1)^{j}\",\"(-1)^{ij}\"]},{\"index\":2,\"placeholder\":\"M_{ij}\",\"options\":[\"M_{ij}\",\"A_{ij}\",\"a_{ij}\",\"M_{ji}\"]}]",
+    "derivationSteps": "[\"固定第 i 行，考虑该行各元素的代数余子式\",\"A_{ij}=(-1)^{i+j} M_{ij}\",\"则 det(A)=Σ a_{ij} A_{ij}\"]",
+    "tags": "行列式计算,代数余子式",
+    "difficultyLevel": 3
+  },
+  {
+    "formulaId": "prob_total_prob_01",
+    "subject": "概率论",
+    "chapter": "随机事件与概率",
+    "title": "全概率公式",
+    "latexCode": "P(A)=\\sum_{i=1}^{n} P(B_i)P(A\\mid B_i)",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"P(B_i)P(A\\\\mid B_i)\",\"options\":[\"P(B_i)P(A\\\\mid B_i)\",\"P(A)P(B_i\\\\mid A)\",\"P(A\\\\mid B_i)\",\"P(A)P(B_i)\"]}]",
+    "derivationSteps": "[\"设 {B_i} 是样本空间的一个划分\",\"A = ∪(A∩B_i) 且互不相容\",\"由可列可加性与乘法公式得结论\"]",
+    "tags": "条件概率,划分,贝叶斯前置",
+    "difficultyLevel": 3
+  },
+  {
+    "formulaId": "prob_expectation_01",
+    "subject": "概率论",
+    "chapter": "随机变量的数字特征",
+    "title": "连续型随机变量期望定义",
+    "latexCode": "E(X)=\\int_{-\\infty}^{+\\infty} x f(x)\\,dx",
+    "clozeData": "[{\"index\":1,\"placeholder\":\"x f(x)\",\"options\":[\"x f(x)\",\"f(x)\",\"x^{2} f(x)\",\"x F(x)\"]},{\"index\":2,\"placeholder\":\"\\\\int_{-\\\\infty}^{+\\\\infty}\",\"options\":[\"\\\\int_{-\\\\infty}^{+\\\\infty}\",\"\\\\int_{0}^{+\\\\infty}\",\"\\\\sum_{i=1}^{\\\\infty}\",\"\\\\int_{0}^{1}\"]}]",
+    "derivationSteps": "[\"由离散型 E(X)=Σ x_k p_k 推广\",\"将求和替换为积分、概率质量替换为概率密度\",\"得到 E(X)=∫ x f(x) dx（需绝对收敛）\"]",
+    "tags": "数字特征,期望,积分计算",
+    "difficultyLevel": 2
+  }
+]
