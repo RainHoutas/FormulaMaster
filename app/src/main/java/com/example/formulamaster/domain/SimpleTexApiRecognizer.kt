@@ -17,39 +17,44 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 /**
- * Task 1.5 — SimpleTex 公式识别 API 识别器
+ * Task 1.5 + Task 1.5b — SimpleTex 公式识别 API 识别器
  *
  * 国内云端识别方案，相比 A1 Mathpix：
  * - 国内直连，无需代理
- * - 个人用户免费 1000 次/天
+ * - 双端点真免费（标准模型 500/天 + 轻量模型 2000/天）
  * - 单 Token 鉴权（vs Mathpix 双 Key）
+ *
+ * ## 双端点（两个并行实例共享同一 token）
+ * - [SimpleTexEndpoint.Standard] = `/api/latex_ocr`（500/天，准确率优先）
+ * - [SimpleTexEndpoint.Turbo]    = `/api/latex_ocr_turbo`（2000/天，速度优先）
+ *
+ * 用户在设置页填一个 token，两个端点同时可用，可分别绑定到 Light / Deep 两档：
+ * - 推荐：Light = Turbo（高频预览，2000/天烧得起）/ Deep = Standard（关键识别更准）
  *
  * ## 认证
  * - **UAT (User Access Token)**：用户从 https://simpletex.net/user/center 申请
  * - Header 中以 `token` 字段传递（**无 Bearer 前缀**）
  *
- * ## API 契约（按 https://doc.simpletex.cn/zh/api/api_formula_recognition.html）
- * - 端点：POST `https://server.simpletex.net/api/latex_ocr`（标准模型，准确率优先）
- *   - 备选 `latex_ocr_turbo`（轻量模型，速度优先）—— Sprint 1 不接，Sprint 后期看需求
+ * ## API 契约（按 https://doc.simpletex.cn/zh/api/api_formula_recognition.html，2025-03-31 版）
+ * - 端点：POST `https://server.simpletex.cn/{endpoint.path}`
  * - 请求：**multipart/form-data**，字段名 `file`，PNG 二进制
  * - 响应（顶层）：
  *   - `status: Boolean`（true 成功 / false 失败）
  *   - `res: { latex: String, conf: Double }`（成功时主输出在 `res.latex`，**注意是嵌套对象**）
  *   - `request_id: String`
  *   - `message: String?`（失败时的错误说明）
+ * - **QPS 限制**：Turbo 5 QPS / Standard 2 QPS（超过会被服务端拒绝，本类未做客户端节流）
  *
  * ## 输入处理
  * - `BitmapInput`：直接编码上传
  * - `StrokeInput`：通过 [StrokeBitmapRenderer] 渲染为白底黑线 PNG（≥800px 宽，OCR 优化）
  *
- * ## Light/Deep 档位
- * 本类不感知档位差异——由 [Task 1.6 RecognizerRegistry] 决定哪个识别器实例分配到哪个槽位。
- *
  * ## 错误兜底
  * 任何异常（HTTP / 超时 / 无网络 / 解析失败）均返回空列表并 Logcat 记录原因，绝不向上抛出。
  */
 class SimpleTexApiRecognizer(
-    private val token: String
+    private val token: String,
+    private val endpoint: SimpleTexEndpoint = SimpleTexEndpoint.Standard
 ) : MathOcrRecognizer {
 
     private val service: SimpleTexService by lazy {
@@ -60,7 +65,8 @@ class SimpleTexApiRecognizer(
             .build()
 
         val retrofit = Retrofit.Builder()
-            .baseUrl("https://server.simpletex.net/")
+            // 官方文档（doc.simpletex.cn）明确域名为 .cn —— 之前误用 .net 已修正
+            .baseUrl("https://server.simpletex.cn/")
             .client(httpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -81,29 +87,62 @@ class SimpleTexApiRecognizer(
                 }
 
                 val part = bitmapToMultipart(bitmap)
-                val response = service.recognize(token, part)
+                val response = service.recognize(endpoint.path, token, part)
 
                 if (!response.status) {
                     android.util.Log.w(
-                        "SimpleTexApiRecognizer",
+                        logTag,
                         "SimpleTex returned status=false: ${response.message} (request_id=${response.requestId})"
                     )
                 }
                 extractCandidates(response)
             }
         } catch (e: retrofit2.HttpException) {
-            android.util.Log.w("SimpleTexApiRecognizer", "HTTP Error: ${e.code()}", e)
+            android.util.Log.w(logTag, "HTTP Error: ${e.code()}", e)
             listOf()
         } catch (e: java.net.SocketTimeoutException) {
-            android.util.Log.w("SimpleTexApiRecognizer", "Network timeout", e)
+            android.util.Log.w(logTag, "Network timeout", e)
             listOf()
         } catch (e: java.net.UnknownHostException) {
-            android.util.Log.w("SimpleTexApiRecognizer", "No network", e)
+            android.util.Log.w(logTag, "No network", e)
             listOf()
         } catch (e: Exception) {
-            android.util.Log.e("SimpleTexApiRecognizer", "Unexpected error", e)
+            android.util.Log.e(logTag, "Unexpected error", e)
             listOf()
         }
+    }
+
+    private val logTag: String get() = "SimpleTex.${endpoint.name}"
+
+    /**
+     * 测试连接：发送一次微小笔画请求，失败时**抛出**异常（与 [recognize] 吞异常的策略相反）。
+     *
+     * 失败模式与抛出的异常：
+     * - Token 缺失 → [IllegalStateException]
+     * - HTTP 401/403/500 → [retrofit2.HttpException]
+     * - 网络超时 → [java.net.SocketTimeoutException]
+     * - 无网络 → [java.net.UnknownHostException]
+     * - 服务端 `status: false`（业务拒绝，例如 token 无效）→ [IllegalStateException]
+     *
+     * 成功条件：HTTP 2xx + 响应体 `status: true`，仅此一种状态判为通过。
+     */
+    override suspend fun testConnection() {
+        if (token.isBlank()) {
+            throw IllegalStateException("Token 未配置")
+        }
+        // 微小测试笔画（3 个点的曲线），仅用于验证请求链路
+        val testStrokes = listOf(listOf(0f to 0f, 50f to 50f, 100f to 0f))
+        val bitmap = StrokeBitmapRenderer.render(testStrokes)
+        val part = bitmapToMultipart(bitmap)
+
+        val response = service.recognize(endpoint.path, token, part)
+        if (!response.status) {
+            // HTTP 2xx 但服务端拒绝：通常是 token 不合法 / 业务规则失败
+            throw IllegalStateException(
+                "SimpleTex 服务拒绝请求：${response.message ?: "未知原因"} (request_id=${response.requestId})"
+            )
+        }
+        // success: HTTP 2xx + status=true → 鉴权通过
     }
 
     // ── 私有辅助 ──────────────────────────────────────────────────────────
@@ -122,9 +161,14 @@ class SimpleTexApiRecognizer(
     // ── Retrofit 接口 ────────────────────────────────────────────────────
 
     private interface SimpleTexService {
+        /**
+         * 动态端点 POST：通过 [retrofit2.http.Url] 让单个方法支持多个 path
+         * （绝对路径下避免 baseUrl 拼接问题，path 由 [SimpleTexEndpoint.path] 提供）
+         */
         @Multipart
-        @POST("api/latex_ocr")
+        @POST
         suspend fun recognize(
+            @retrofit2.http.Url path: String,
             @Header("token") token: String,
             @Part file: MultipartBody.Part
         ): SimpleTexResponse
@@ -168,4 +212,16 @@ class SimpleTexApiRecognizer(
             return listOfNotNull(response.res?.latex?.takeIf { it.isNotBlank() })
         }
     }
+}
+
+/**
+ * SimpleTex 端点选择。两个端点共享同一 UAT token，免费额度独立计算。
+ *
+ * 引用 https://doc.simpletex.cn/zh/api/api_formula_recognition.html ：
+ * - [Standard]：完整版模型，识别准确率优先
+ * - [Turbo]：轻量版模型，速度优先
+ */
+enum class SimpleTexEndpoint(val path: String, val displayName: String, val freeQuota: String) {
+    Standard("api/latex_ocr",       "标准模型", "500/天"),
+    Turbo   ("api/latex_ocr_turbo", "Turbo 模型", "2000/天"),
 }

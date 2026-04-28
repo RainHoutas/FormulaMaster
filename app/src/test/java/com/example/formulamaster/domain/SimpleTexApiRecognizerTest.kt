@@ -163,4 +163,65 @@ class SimpleTexApiRecognizerTest {
         val rec: MathOcrRecognizer = SimpleTexApiRecognizer("token")
         assertNotNull(rec)
     }
+
+    // ── 7. SimpleTexEndpoint 双端点（Task 1.5b） ─────────────────────────
+
+    @Test fun `默认端点是 Standard`() {
+        // 不传 endpoint 参数 → 默认 Standard
+        val rec = SimpleTexApiRecognizer("token")
+        assertNotNull("默认构造应成功", rec)
+    }
+
+    @Test fun `可以构造 Standard 端点的实例`() {
+        val rec = SimpleTexApiRecognizer("token", SimpleTexEndpoint.Standard)
+        assertNotNull(rec)
+    }
+
+    @Test fun `可以构造 Turbo 端点的实例`() {
+        val rec = SimpleTexApiRecognizer("token", SimpleTexEndpoint.Turbo)
+        assertNotNull(rec)
+    }
+
+    @Test fun `Standard 和 Turbo 端点 path 不同`() {
+        assertEquals("api/latex_ocr", SimpleTexEndpoint.Standard.path)
+        assertEquals("api/latex_ocr_turbo", SimpleTexEndpoint.Turbo.path)
+        assertNotEquals(SimpleTexEndpoint.Standard.path, SimpleTexEndpoint.Turbo.path)
+    }
+
+    @Test fun `所有 SimpleTexEndpoint 都有非空 displayName 和 freeQuota`() {
+        for (e in SimpleTexEndpoint.entries) {
+            assertTrue("endpoint=$e 应有 displayName", e.displayName.isNotBlank())
+            assertTrue("endpoint=$e 应有 freeQuota", e.freeQuota.isNotBlank())
+        }
+    }
+
+    // ── 8. testConnection 行为契约（不吞异常） ───────────────────────────
+
+    @Test fun `testConnection 在 token 为空时抛 IllegalStateException`() {
+        val rec = SimpleTexApiRecognizer("")
+        var thrown: Throwable? = null
+        kotlinx.coroutines.runBlocking {
+            try {
+                rec.testConnection()
+            } catch (e: Throwable) {
+                thrown = e
+            }
+        }
+        assertNotNull("应抛异常而非吞掉", thrown)
+        assertTrue("应是 IllegalStateException", thrown is IllegalStateException)
+    }
+
+    @Test fun `testConnection 在 token 为纯空白时抛 IllegalStateException`() {
+        val rec = SimpleTexApiRecognizer("   \n\t  ")
+        var thrown: Throwable? = null
+        kotlinx.coroutines.runBlocking {
+            try {
+                rec.testConnection()
+            } catch (e: Throwable) {
+                thrown = e
+            }
+        }
+        assertNotNull(thrown)
+        assertTrue(thrown is IllegalStateException)
+    }
 }

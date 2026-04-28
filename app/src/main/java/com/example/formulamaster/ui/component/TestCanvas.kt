@@ -2,14 +2,8 @@ package com.example.formulamaster.ui.component
 
 import android.os.Build
 import android.view.MotionEvent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -47,12 +42,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.example.formulamaster.domain.LatexNormalizer
 import com.example.formulamaster.domain.MathOcrRecognizer
 import com.example.formulamaster.domain.MockMathRecognizer
 import com.example.formulamaster.domain.OcrInput
 import com.example.formulamaster.domain.RecognitionMode
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.delay
 
 /**
@@ -69,11 +66,16 @@ private const val TOOL_TYPE_PALM_VALUE = 5
  * - **Palm Rejection**：`pointerInteropFilter` 过滤 [MotionEvent.TOOL_TYPE_PALM]，
  *   避免写字时手掌误触造成多余笔画
  * - **双档 debounce**：
- *   - 停笔 [lightDebounceMs]（默认 300ms）→ [RecognitionMode.Light] → 顶部预览条即时反馈
- *   - 停笔 [deepDebounceMs]（默认 1500ms）→ [RecognitionMode.Deep] → 候选区多候选
+ *   - 停笔 [lightDebounceMs]（默认 300ms）→ [lightRecognizer] → 顶部预览条即时反馈
+ *   - 停笔 [deepDebounceMs]（默认 1500ms）→ [deepRecognizer] → 候选区多候选
  * - **顶部 40dp 预览条**：KaTeX 实时渲染 Light 结果 + "✓采纳"快捷按钮
  * - **画布横向自适应**：占满容器宽度（不嵌套 horizontalScroll，避免父子手势冲突）
  * - **右侧 fade 渐变**：24dp 宽渐变常驻右缘的视觉装饰
+ *
+ * ## Sprint 1 Task 1.7 升级
+ * - Light/Deep 两档分别接受独立的识别器（来自 `RecognizerPreference` + `RecognizerRegistry.resolveLight/Deep`），
+ *   用户可在设置页绑定不同识别器到两档
+ * - null 表示该档未绑定（不触发识别），避免静默失败
  *
  * ## 架构说明
  * OCR 通过 [MathOcrRecognizer] 接口注入（依赖倒置），UI 层零感知具体实现。
@@ -87,7 +89,8 @@ private const val TOOL_TYPE_PALM_VALUE = 5
 fun TestCanvas(
     onCandidateSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    recognizer: MathOcrRecognizer = remember { MockMathRecognizer() },
+    lightRecognizer: MathOcrRecognizer? = remember { MockMathRecognizer() },
+    deepRecognizer: MathOcrRecognizer? = remember { MockMathRecognizer() },
     lightDebounceMs: Long = 300L,
     deepDebounceMs: Long = 1_500L
 ) {
@@ -95,56 +98,80 @@ fun TestCanvas(
     val completedStrokes = remember { mutableStateListOf<List<Offset>>() }
     // 当前正在绘制的笔画
     var currentStroke by remember { mutableStateOf(emptyList<Offset>()) }
-    // Deep 识别候选（≤3）
-    var candidates by remember { mutableStateOf(emptyList<String>()) }
-    // Light 识别预览（top1）
+    // 当前预览的 LaTeX（Light 自动写入；强识别成功后覆盖；采纳后清空）
     var previewLatex by remember { mutableStateOf("") }
+    // Light 请求是否在飞行中（用于 PreviewBar 显示"识别中…"）
+    var lightLoading by remember { mutableStateOf(false) }
+    // Deep 手动触发计数器：++ 一次触发一次 Deep 识别（避免 Boolean 边沿同步问题）
+    var deepTriggerNonce by remember { mutableIntStateOf(0) }
+    // Deep 请求是否在飞行中
+    var deepLoading by remember { mutableStateOf(false) }
+    // Deep 请求结果反馈：失败时显示 2s 提示（成功默默覆盖 previewLatex 即可）
+    var deepFailureMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(deepFailureMessage) {
+        if (deepFailureMessage != null) {
+            delay(2500L)
+            deepFailureMessage = null
+        }
+    }
 
     val strokeColor = MaterialTheme.colorScheme.onSurface
     val surfaceColor = MaterialTheme.colorScheme.surface
 
-    // ── 双档 debounce ────────────────────────────────────────────────────
-    // Light：300ms 后刷新预览条
-    LaunchedEffect(completedStrokes.size) {
-        if (completedStrokes.isEmpty()) {
+    // ── Light：自动防抖（cheap，turbo 端点 2000/天烧得起） ───────────────
+    LaunchedEffect(completedStrokes.size, lightRecognizer) {
+        if (completedStrokes.isEmpty() || lightRecognizer == null) {
             previewLatex = ""
+            lightLoading = false
             return@LaunchedEffect
         }
         delay(lightDebounceMs)
         val snapshot = completedStrokes.map { stroke -> stroke.map { it.x to it.y } }
-        // 必须 try-catch：识别器（尤其 ML Kit）可能抛 GmsUnavailable / 模型下载失败 /
-        // 网络超时等异常，未捕获会冒泡到协程作用域导致 Composable 崩溃。
-        // 失败时静默清空预览，不影响主流程；Task 1.8 接友好降级 UI 时再做用户提示。
+        lightLoading = true
+        // 必须 try-catch：识别器可能抛网络超时 / Key 失效 / 服务异常等，
+        // 未捕获会冒泡到协程作用域导致 Composable 崩溃。
         previewLatex = try {
-            val result = recognizer.recognize(OcrInput.StrokeInput(snapshot), RecognitionMode.Light)
-            result.firstOrNull().orEmpty()
+            val result = lightRecognizer.recognize(OcrInput.StrokeInput(snapshot), RecognitionMode.Light)
+            // 应用 LatexNormalizer 把 Unicode 符号、裸函数名等清理为 KaTeX 兼容形式
+            result.firstOrNull()?.let { LatexNormalizer.normalize(it) }.orEmpty()
         } catch (e: Exception) {
             android.util.Log.w("TestCanvas", "Light recognize failed", e)
             ""
+        } finally {
+            lightLoading = false
         }
     }
 
-    // Deep：1500ms 后填候选区
-    LaunchedEffect(completedStrokes.size) {
-        if (completedStrokes.isEmpty()) {
-            candidates = emptyList()
-            return@LaunchedEffect
-        }
-        delay(deepDebounceMs)
+    // ── Deep：手动触发（避免浪费 standard 端点 500/天的额度） ────────────
+    // 设计：单结果直接覆盖 previewLatex（去除弹窗确认环节），失败时 2.5s 提示
+    LaunchedEffect(deepTriggerNonce) {
+        if (deepTriggerNonce == 0) return@LaunchedEffect  // 初始值，不触发
+        if (completedStrokes.isEmpty() || deepRecognizer == null) return@LaunchedEffect
+
         val snapshot = completedStrokes.map { stroke -> stroke.map { it.x to it.y } }
-        candidates = try {
-            recognizer.recognize(OcrInput.StrokeInput(snapshot), RecognitionMode.Deep).take(3)
+        deepLoading = true
+        try {
+            val raw = deepRecognizer.recognize(OcrInput.StrokeInput(snapshot), RecognitionMode.Deep)
+            val cleaned = LatexNormalizer.normalizeAndFilter(raw).firstOrNull()
+            if (cleaned != null) {
+                previewLatex = cleaned   // 直接覆盖 Light 的结果
+                deepFailureMessage = null
+            } else {
+                deepFailureMessage = "强识别未识别到公式"
+            }
         } catch (e: Exception) {
             android.util.Log.w("TestCanvas", "Deep recognize failed", e)
-            emptyList()
+            deepFailureMessage = "强识别失败：${e.message?.take(40) ?: e.javaClass.simpleName}"
+        } finally {
+            deepLoading = false
         }
     }
 
     fun clearAll() {
         completedStrokes.clear()
         currentStroke = emptyList()
-        candidates = emptyList()
         previewLatex = ""
+        deepFailureMessage = null
     }
 
     fun selectCandidate(latex: String) {
@@ -154,10 +181,16 @@ fun TestCanvas(
     }
 
     Column(modifier = modifier) {
-        // ── 顶部 40dp 实时预览条 ───────────────────────────────────────────
+        // ── 顶部 80dp 实时预览条 ───────────────────────────────────────────
         PreviewBar(
             latex = previewLatex,
-            onAdopt = { selectCandidate(previewLatex) }
+            isLoading = lightLoading,
+            hasStrokes = completedStrokes.isNotEmpty(),
+            deepFailureMessage = deepFailureMessage,
+            onAdopt = { selectCandidate(previewLatex) },
+            onRecognizeDeep = { deepTriggerNonce++ },
+            canRecognizeDeep = completedStrokes.isNotEmpty() && deepRecognizer != null && !deepLoading,
+            isDeepLoading = deepLoading
         )
 
         // ── 主画布区（剩余空间） ───────────────────────────────────────────
@@ -244,18 +277,6 @@ fun TestCanvas(
                     )
             )
 
-            // 候选区（Deep 识别结果，1500ms 后以 slide + fade 出现）
-            // 抽成私有 Composable 函数以隔离外层 Column / BoxWithConstraints scope，
-            // 让 AnimatedVisibility 无歧义匹配顶层无 receiver 版本
-            CandidatesOverlay(
-                candidates = candidates,
-                onSelect = { latex -> selectCandidate(latex) },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            )
-
             // 右上角工具栏：撤销 / 清空
             Row(
                 modifier = Modifier
@@ -267,7 +288,6 @@ fun TestCanvas(
                     onClick = {
                         if (completedStrokes.isNotEmpty()) {
                             completedStrokes.removeAt(completedStrokes.lastIndex)
-                            candidates = emptyList()
                             // previewLatex 会在下一轮 Light debounce 自动刷新（或清空）
                         }
                     },
@@ -291,25 +311,38 @@ fun TestCanvas(
             }
         }
     }
+
 }
 
 /**
- * 顶部 40dp 实时预览条
+ * 顶部 80dp 实时预览条
  *
- * - 左侧：KaTeX 渲染 Light 识别的 top1 候选（[latex] 为空时显示占位提示）
- * - 右侧：✓采纳按钮，等价于点击候选区该条目
+ * 三档状态显示：
+ * - Loading：CircularProgressIndicator + "识别中…"
+ * - 有结果：KaTeX 渲染 latex（MathFormulaView 占满高度，复杂上下标也能完整显示）
+ * - 空结果：占位文字（区分"还没写"和"写了但识别为空"）
+ *
+ * 右侧两个按钮：
+ * - 「强识别」（FilledTonalButton）：手动触发 Deep 识别（更准确但耗 standard 额度）
+ * - 「采纳」（IconButton ✓）：把预览的 latex 提交为答案
  */
 @Composable
 private fun PreviewBar(
     latex: String,
-    onAdopt: () -> Unit
+    isLoading: Boolean,
+    hasStrokes: Boolean,
+    deepFailureMessage: String?,
+    onAdopt: () -> Unit,
+    onRecognizeDeep: () -> Unit,
+    canRecognizeDeep: Boolean,
+    isDeepLoading: Boolean
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(80.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -318,20 +351,62 @@ private fun PreviewBar(
                 .fillMaxHeight(),
             contentAlignment = Alignment.CenterStart
         ) {
-            if (latex.isBlank()) {
-                Text(
-                    text = "停笔 300ms 显示预览…",
+            when {
+                // 强识别失败提示优先级最高（2.5s 内覆盖任何其他状态）
+                deepFailureMessage != null -> Text(
+                    text = deepFailureMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                isLoading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "识别中…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                latex.isNotBlank() -> MathFormulaView(
+                    latex = latex,
+                    modifier = Modifier.fillMaxSize()
+                )
+                hasStrokes -> Text(
+                    text = "未识别到公式（点「强识别」试试更精确的）",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
-                MathFormulaView(
-                    latex = latex,
-                    modifier = Modifier.fillMaxSize()
+                else -> Text(
+                    text = "写公式后停笔 300ms 自动预览",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
+        FilledTonalButton(
+            onClick = onRecognizeDeep,
+            enabled = canRecognizeDeep,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 12.dp, vertical = 4.dp
+            )
+        ) {
+            if (isDeepLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(
+                text = if (isDeepLoading) "强识别中" else "强识别",
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
         IconButton(
             onClick = onAdopt,
             enabled = latex.isNotBlank()
@@ -344,44 +419,3 @@ private fun PreviewBar(
     }
 }
 
-/**
- * 候选区覆盖层：AnimatedVisibility 包裹的 Deep 候选按钮排。
- *
- * 抽离为私有 Composable 的目的是隔离调用点的外层 scope
- * （调用处嵌套在 `Column { BoxWithConstraints { ... } }` 中，
- * 编译器会试图选择 `ColumnScope.AnimatedVisibility` 的扩展，
- * 导致 "cannot be called with implicit receiver" 编译错误）。
- * 在本函数内只有默认的 Composable scope，AnimatedVisibility 无歧义。
- */
-@Composable
-private fun CandidatesOverlay(
-    candidates: List<String>,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    AnimatedVisibility(
-        visible = candidates.isNotEmpty(),
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            candidates.forEach { latex ->
-                FilledTonalButton(
-                    onClick = { onSelect(latex) },
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Text(
-                        text = latex,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}

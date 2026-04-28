@@ -139,4 +139,34 @@ class MathpixApiRecognizerTest {
         val rec: MathOcrRecognizer = MathpixApiRecognizer("id", "key")
         assertNotNull(rec)
     }
+
+    // ── 6. testConnection 行为契约（不吞异常） ───────────────────────────
+
+    @Test fun `testConnection 在 appId 缺失时抛 IllegalStateException`() {
+        val rec = MathpixApiRecognizer("", "key")
+        var thrown: Throwable? = null
+        kotlinx.coroutines.runBlocking {
+            try {
+                rec.testConnection()
+            } catch (e: Throwable) {
+                thrown = e
+            }
+        }
+        assertNotNull("应抛异常而非吞掉", thrown)
+        assertTrue("应是 IllegalStateException", thrown is IllegalStateException)
+    }
+
+    @Test fun `testConnection 在 appKey 缺失时抛 IllegalStateException`() {
+        val rec = MathpixApiRecognizer("id", "")
+        var thrown: Throwable? = null
+        kotlinx.coroutines.runBlocking {
+            try {
+                rec.testConnection()
+            } catch (e: Throwable) {
+                thrown = e
+            }
+        }
+        assertNotNull(thrown)
+        assertTrue(thrown is IllegalStateException)
+    }
 }

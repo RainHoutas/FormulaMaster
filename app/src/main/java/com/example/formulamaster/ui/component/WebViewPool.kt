@@ -83,6 +83,14 @@ object WebViewPool {
                 domStorageEnabled = true
                 @Suppress("DEPRECATION")
                 allowFileAccessFromFileURLs = true
+
+                // 关键：必须显式关闭 wide viewport，否则 WebView 会用屏幕设备宽度
+                // （而不是 WebView 自身 frame 宽度）作为 viewport，导致 body.clientWidth
+                // 报告 412 之类的设备宽度，但实际 WebView 只有 ~280dp 宽，
+                // 内容被自动缩放后看起来比 JS 计算的字号小得多。
+                useWideViewPort = false
+                // 关闭"概览模式"：避免 WebView 把整页缩放到刚好放下（造成额外缩小）
+                loadWithOverviewMode = false
             }
             setBackgroundColor(Color.TRANSPARENT)
         }

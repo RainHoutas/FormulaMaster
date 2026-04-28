@@ -22,6 +22,9 @@ interface MathOcrRecognizer {
     /**
      * 识别手写输入，返回 Top-N 个 LaTeX 候选字符串，按置信度降序排列。
      *
+     * **重要**：实现类应**吞掉所有异常返回空列表**，避免协程异常冒泡到 Composable
+     * 导致 UI 崩溃。设置页"测试连接"使用 [testConnection]，那里需要明确区分错误类型。
+     *
      * @param input 笔画坐标或位图输入
      * @param mode  识别模式，决定实现类的策略（默认 Deep，保持既有调用点兼容）
      */
@@ -29,6 +32,19 @@ interface MathOcrRecognizer {
         input: OcrInput,
         mode: RecognitionMode = RecognitionMode.Deep
     ): List<String>
+
+    /**
+     * 测试连接（鉴权 + 网络可达性），用于设置页"测试连接"按钮。
+     *
+     * 与 [recognize] 完全不同的设计：本方法**不吞任何异常**，
+     * 失败时直接抛对应异常（[retrofit2.HttpException] / [java.net.SocketTimeoutException] /
+     * [java.net.UnknownHostException] / [IllegalStateException] 等），
+     * 调用方据此区分"Key 无效 / 网络超时 / 服务异常"等不同错误。
+     *
+     * 默认实现 no-op（Mock 等无需鉴权的实现）。
+     * 真实云端识别器（A1 Mathpix / A2 SimpleTex）必须重写此方法做实际鉴权检查。
+     */
+    suspend fun testConnection() { /* no-op */ }
 }
 
 /**

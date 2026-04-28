@@ -110,6 +110,39 @@ class MathpixApiRecognizer(
         }
     }
 
+    /**
+     * 测试连接：发送一次微小笔画请求，失败时**抛出**异常（与 [recognize] 吞异常的策略相反）。
+     *
+     * 失败模式与抛出的异常：
+     * - Key 缺失 → [IllegalStateException]
+     * - HTTP 401/403/500 → [retrofit2.HttpException]
+     * - 网络超时 → [java.net.SocketTimeoutException]
+     * - 无网络 → [java.net.UnknownHostException]
+     * - 服务端响应 `error` 非空（业务拒绝）→ [IllegalStateException]
+     *
+     * 成功条件：HTTP 2xx + `error` 字段为空，仅此一种状态判为通过。
+     */
+    override suspend fun testConnection() {
+        if (appId.isBlank() || appKey.isBlank()) {
+            throw IllegalStateException("App ID 或 App Key 未配置")
+        }
+        // 微小测试笔画（3 个点的曲线），仅用于验证请求链路
+        val testStrokes = listOf(listOf(0f to 0f, 50f to 50f, 100f to 0f))
+        val bitmap = StrokeBitmapRenderer.render(testStrokes)
+        val base64 = bitmapToBase64(bitmap)
+        val request = MathpixRequest(
+            src = "data:image/png;base64,$base64",
+            formats = listOf("latex_styled")
+        )
+        val response = service.recognize(appId, appKey, request)
+        if (!response.error.isNullOrBlank()) {
+            throw IllegalStateException(
+                "Mathpix 服务拒绝请求：${response.error} (request_id=${response.requestId})"
+            )
+        }
+        // success: HTTP 2xx + 无 error → 鉴权通过
+    }
+
     // ── 私有辅助函数 ──────────────────────────────────────────────────────
 
     /**

@@ -136,45 +136,118 @@ status: 进行中
     边界 4、复杂 LaTeX 透传 2、空响应防 NPE 1、构造器 2），覆盖 SimpleTex 嵌套 res.latex JSON 契约。
     端到端验收待 Task 1.7 SettingsScreen 真机填入有效 UAT 完成
 
-  > 备选：`/api/latex_ocr_turbo`（轻量模型，速度优先）—— 暂不接入，作为改进点池条目
+- [x] **Task 1.5b** SimpleTex Turbo 端点接入（紧急补丁）✅ 2026-04-25
+  - **背景**：调研发现免费云端公式 OCR 仅 SimpleTex 一家可用，标准模型 500/天对 Light 档高频
+    防抖触发不够。**SimpleTex turbo 端点免费 2000/天**，必须接入才能让用户敢用实时预览。
+  - 改动：
+    - `domain/SimpleTexApiRecognizer.kt`：构造器加 `endpoint: SimpleTexEndpoint = Standard` 参数
+    - 新增 `SimpleTexEndpoint` 枚举（Standard / Turbo），每个端点带 path + displayName + freeQuota
+    - Retrofit service 改用 `@Url` 动态路径，单方法支持两个端点
+    - `domain/RecognizerType.kt`：拆 `A2_SimpleTex` → `A2_SimpleTex_Standard` + `A2_SimpleTex_Turbo`
+      每个 type 带 displayName + description（下拉显示更直观）
+    - `domain/RecognizerRegistry.kt`：两个 SimpleTex 类型共享同一 token 的可用性判断
+    - `data/RecognizerPreference.kt`：旧 `A2_SimpleTex` 字符串迁移到 `A2_SimpleTex_Standard`（兼容）
+    - `ui/screen/SettingsScreen.kt`：
+      - SimpleTex 卡片置顶（推荐路径优先展示）
+      - Mathpix 卡片副标题加 `⚠️ 付费` 警示
+      - 档位绑定下拉显示 `displayName + description`，让用户一眼看清差异
+  - 用户体验：
+    - 配置一次 SimpleTex token，下拉同时出现 "SimpleTex Turbo" 和 "SimpleTex 标准" 两个选项
+    - 推荐绑定：Light=Turbo（2000/天预览不心疼）/ Deep=Standard（500/天关键识别更准）
+    - 每天约 200-400 道公式不会超额
+  - **Done 标准**：BUILD SUCCESSFUL；**104/104 单元测试通过**（含 Registry 19 条更新 + Endpoint 5 条新增）
 
-- [ ] **Task 1.6** 识别器注册表 + 用户偏好
-  - 新建 `domain/RecognizerRegistry.kt`：
-    - 枚举 `RecognizerType { A1_Mathpix, A2_SimpleTex }`（L1 已拒绝，未来 L2 端侧 TFLite 上线后扩枚举）
-    - `isAvailable(type, prefs): Boolean`：A1 需要 appId+appKey 都非空；A2 需要 token 非空
-    - `instantiate(type, prefs): MathOcrRecognizer?`：按 type 创建对应 Recognizer 实例（注入 Key），不可用则返回 null
-  - 新建 `data/RecognizerPreference.kt`，存储以下字段（EncryptedSharedPreferences）：
-    - `lightRecognizerId: RecognizerType?`（Light 档用哪个，**默认 null = 未绑定**）
-    - `deepRecognizerId: RecognizerType?`（Deep 档用哪个，**默认 null = 未绑定**）
-    - `mathpixAppId: String`、`mathpixAppKey: String`（A1 所需）
-    - `simpleTexToken: String`（A2 所需）
+- [x] **Task 1.6** 识别器注册表 + 用户偏好 ✅ 2026-04-25
+  - **架构调整**：原 spec 使用 `androidx.security:security-crypto` (EncryptedSharedPreferences)，
+    但该库已于 2025-04 在 1.1.0-alpha07 被官方废弃。改用 Google 推荐的现代方案：
+    - `androidx.datastore:datastore-preferences:1.1.1`（替代 SharedPreferences）
+    - `com.google.crypto.tink:tink-android:1.13.0`（AES256-GCM + Android Keystore 主密钥）
+  - 新建 `domain/RecognizerType.kt`：枚举 `{ A1_Mathpix, A2_SimpleTex }` + displayName 属性
+  - 新建 `domain/RecognizerSettings.kt`：不可变快照 data class，全字段默认 null/空
+  - 新建 `domain/RecognizerRegistry.kt`（**纯函数 object**）：
+    - `isAvailable(type, settings)`：A1 需 appId+appKey 双非空；A2 需 token 非空
+    - `availableTypes(settings)`：返回当前可用列表，供 SettingsScreen 下拉过滤
+    - `instantiate(type, settings)`：按 type + settings 构造对应 `MathOcrRecognizer`，不可用返回 null
+    - `resolveLight(settings)` / `resolveDeep(settings)`：按用户绑定解析最终实例（绑定的识别器变为不可用时返回 null）
+  - 新建 `data/EncryptedKeyStore.kt`（Tink 包装层）：
+    - 主密钥存于 Android Keystore（URI: `android-keystore://formula_master_master_key`）
+    - 数据密钥（AES256-GCM keyset）由主密钥加密后存于 SharedPreferences
+    - `encrypt(plain): Base64` / `decrypt(cipher): plain`，解密失败安全降级返回空串 + Logcat 警告
+  - 新建 `data/RecognizerPreference.kt`（DataStore-backed，响应式 Flow）：
+    - 敏感字段（mathpixAppId / mathpixAppKey / simpleTexToken）经 Tink 加密后存 DataStore，明文绝不落盘
+    - 非敏感字段（lightRecognizerId / deepRecognizerId 枚举名）明文存储
+    - `settings: Flow<RecognizerSettings>` 响应式监听，DataStore 写入后立即 emit
+    - 写方法均为 suspend，原子写入（避免 mathpix appId/appKey 半状态）
+    - `setLightRecognizer(null)` / `setDeepRecognizer(null)` 解除绑定
+    - `clearAll()` 重置全部配置
+    - 历史/未来枚举值兼容：未知 type 名解析为 null（不抛异常）
   - **核心设计**：
     - **A1/A2 是独立存在的**，用户可同时配置多个；Light/Deep 各自从已配置可用的识别器中选一个绑定，
       而非全局"只用一个"。两档可绑定同一识别器，也可分开（例：Light=A2 省钱省额度，Deep=A1 求准）
     - 默认 null 是有意设计：**强制用户首次进设置完成配置**，避免静默无识别器导致的"看似工作其实没识别"
       的隐蔽失败模式。与改进点池 [交互] Onboarding 引导（P1）联动 —— 首启检测到两档都为 null 即弹引导
-  - 依赖：`androidx.security:security-crypto`
-  - **Done 标准**：重启 App 后 lightRecognizerId / deepRecognizerId / Keys 均持久化；
-    Key 明文不可见（DDMS 文件浏览验证）；`isAvailable()` 对未配置 Key 的识别器返回 false
+  - **Done 标准**：BUILD SUCCESSFUL；**23 条 RecognizerRegistry 单元测试通过**
+    （isAvailable 8、availableTypes 4、instantiate 4、resolveLight/Deep 6、displayName 1）。
+    DataStore + Tink 持久化路径需 Android Context，待 Task 1.7 真机端到端验收：
+    - 重启 App 后 Light/Deep 绑定 + Key 配置均保留
+    - DDMS 文件浏览查看 `datastore/recognizer_prefs.preferences_pb`，敏感 Key 字段为 Base64 密文
 
-- [ ] **Task 1.7** SettingsScreen 设置页
-  - 新增第 4 个顶级路由 or 长按底栏入口（**开工前决策，先问用户**）
-  - **识别器配置区**（每个识别器独立一块卡片，未配置 Key 的识别器卡片显示"未配置"角标）：
-    - **A1 Mathpix**：AppID + AppKey 两个输入框（密码模式 / 显示切换图标）+ 「测试连接」按钮
-      - 测试连接：发送最小尺寸 dummy 图片到 v3/text，按钮旁实时反馈（✅ 连接正常 / ❌ Key 无效 / ❌ 网络超时）
-    - **A2 SimpleTex**：Token 输入框（密码模式）+ 「测试连接」按钮（同 A1）
-    - （未来 L2 端侧 TFLite 上线后，本区会自动追加新卡片，无需 UI 重构）
+- [x] **Task 1.7** SettingsScreen 设置页 ✅ 2026-04-25（待真机验收）
+  - **入口决策（已拍板）**：方案 A —— 第 4 个底栏 Tab「设置」（齿轮图标）
+  - 工程：
+    - `MainScreen.kt` 新增 `AppRoute.Settings`，加入 `topLevelRoutes`（保留底栏可见）
+    - 新建 `ui/screen/SettingsScreen.kt`：M3 + ElevatedCard，纵向滚动，三大区
+    - 新建 `ui/viewmodel/SettingsViewModel.kt`：桥接 `RecognizerPreference` Flow → StateFlow，
+      暴露 set/clear 方法 + `testConnection(type)` 副作用
+  - **识别器配置区**：
+    - A1 Mathpix 卡片：AppID + AppKey（密码模式，「显示/隐藏」按钮切换可见）+ 「保存」+ 「测试连接」
+    - A2 SimpleTex 卡片：UAT Token（密码模式）+ 「保存」+ 「测试连接」
+    - 卡片右上角 AssistChip 状态标识：「已配置」（蓝填充）/「未配置」（灰描边）
+    - 「保存」按钮在表单 dirty 时启用，写入后变「已保存」灰态
+    - 「测试连接」实时显示状态：测试中（CircularProgressIndicator）/ 连接正常（绿勾）/
+      失败（红叉 + 原因文案，4 秒后自动消失）
+    - 失败原因细分：「Key 无效或已过期」（401/403）/「网络超时」/「无网络连接」/「服务暂时不可用」（5xx）
   - **识别档位绑定区**：
-    - 「实时预览（300ms 防抖）使用」 → 下拉菜单，**仅列出当前 `isAvailable()=true` 的识别器** + "未绑定"
-    - 「精确识别（1.5s 防抖）使用」 → 下拉菜单，同上
-    - 两档可绑定同一识别器，也可分别绑定不同识别器
-    - 选择"未绑定"等同于关闭该档识别（写字时该档不触发请求）
-  - **降级提示**：当某档绑定的识别器变为不可用（用户清空了 Key 等），下拉显示警告状态 + 引导重新绑定
+    - 两个 ExposedDropdownMenu：「实时预览（300ms 防抖）」 + 「精确识别（1.5s 防抖）」
+    - 仅列出 `RecognizerRegistry.availableTypes(settings)` 返回的可用识别器 + "未绑定"
+    - 无可用识别器时下拉禁用，文案变红色提示「请先在上方配置至少一个识别器」
+    - 描述文案差异化：Light 强调"识别速度"，Deep 强调"识别准确"
+  - **重置区**：
+    - OutlinedButton「重置所有配置」（错误色文字），点击弹 AlertDialog 二次确认，调用 `clearAll()`
+  - **TestCanvas 联动**（Sprint 1 Task 1.7 核心）：
+    - `TestCanvas` 签名改为接收 `lightRecognizer: MathOcrRecognizer?` + `deepRecognizer: MathOcrRecognizer?`
+    - `TestScreen` 实例化 `RecognizerPreference`，flow 解析为 settings → `RecognizerRegistry.resolveLight/Deep`
+    - 设置页保存 / 切换绑定 → DataStore 写入 → flow 推送 → TestCanvas Composable 重组，
+      LaunchedEffect key 含 recognizer，触发立即重新订阅 → **完全无需重启 App**
+    - recognizer 为 null 时该档不触发识别（previewLatex/candidates 保持空列表）
   - **Done 标准**：
-    - 设置保存后 TestCanvas 的 Light / Deep 两档分别使用用户绑定的识别器，无需重启 App
-    - 切换绑定即时生效（StateFlow 推送）
-    - 「测试连接」对有效/无效 Key 区分明确，文案准确
-    - 真机填入有效 Mathpix Key + 写一个公式 → Deep 档返回非空候选（端到端验收）
+    - ✅ BUILD SUCCESSFUL on Gradle 9.4.1 / AGP 9.2.0 / KSP 2.3.2
+    - ✅ 既有 96/96 单元测试仍全部通过（无回归）
+    - ✅ 真机端到端验收（用户填入真实 SimpleTex Key 后通过）：
+      - 重启 App 后绑定 + Key 配置保留（DataStore 持久化生效）
+      - TestCanvas 写公式 Light / Deep 两档分别用绑定的识别器返回候选
+      - 切换绑定无需重启即生效（DataStore Flow → recompose 链路验证）
+  - **真机阶段额外修复（用户反馈驱动）**：
+    - **测试连接假阳性**：`testConnection()` 之前调 `recognize()` 而该方法吞所有异常
+      → 假错误 token 也显示"连接正常"。新增 `MathOcrRecognizer.testConnection()` 接口方法
+      不吞异常，A1/A2 各自实现真实鉴权检查
+    - **测试按钮卡死 "2s 后可重试"**：状态自动消失（4s）和冷却时长（5s）不一致，外层 tick 提前死掉。
+      把 `delay(4000L)` 对齐到 `TEST_COOLDOWN_MS = 5000L`
+    - **测试速率限制**：客户端 5s 冷却 + 倒计时 + ViewModel 兜底（即使 UI 失效也拦截重复请求）
+    - **强识别交互重构**：移除候选 ModalBottomSheet 弹窗（只有 1 条候选时多此一举），
+      Deep 结果直接覆盖 Light 的预览，失败时 PreviewBar 显示 2.5s 红字提示
+    - **公式渲染管线重构**（math_template.html + WebViewPool）：
+      - **WebView wide-viewport bug**：`useWideViewPort = true`（默认）使 viewport 用屏幕设备宽度而非 WebView frame，
+        公式被二次缩放显得很小。改为 `useWideViewPort = false` + `loadWithOverviewMode = false`
+      - **`body { height: 100% }` 在 Compose 内嵌 WebView 中失效**：诊断数据显示 `body.clientHeight=8`（仅 padding），
+        改用 `100vh + 100vw` 直接绑 viewport
+      - **字号自适应**：放弃基于 body 测量的 JS 算法（body 数据不可信），
+        改用 CSS `clamp(20px, 55vh, 52px)` 直接由 WebView 渲染层处理
+      - **JS 仅做 overflow 兜底**：用 `window.innerWidth/Height`（reliable）测量，超出时缩字号
+      - **KaTeX `.katex-display` 默认 1em margin 强制清零**（避免视觉裁切上下半）
+      - **左对齐书写习惯**：`place-items: center start` + `.katex-display { text-align: left }`
+    - **诊断驱动开发**：当反复猜测失败时，在 HTML 模板插入 diag 角标显示 body/win/dpr/font 等运行时数据，
+      用户一张截图就能定位，避免靠 Logcat 反复来回
 
 - [ ] **Task 1.8** 识别器不可用时的友好降级
   - 场景覆盖：

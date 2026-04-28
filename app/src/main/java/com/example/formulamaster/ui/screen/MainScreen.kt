@@ -7,9 +7,11 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -33,9 +35,10 @@ import androidx.navigation.navArgument
 // ── 路由定义 ──────────────────────────────────────────────────────────────────
 
 sealed class AppRoute(val route: String) {
-    data object Memory : AppRoute("memory")
-    data object Review : AppRoute("review")
-    data object Test   : AppRoute("test")
+    data object Memory   : AppRoute("memory")
+    data object Review   : AppRoute("review")
+    data object Test     : AppRoute("test")
+    data object Settings : AppRoute("settings")
 
     /** 公式详情：memory → formula_detail/{formulaId} */
     data object FormulaDetail : AppRoute("formula_detail/{formulaId}") {
@@ -48,7 +51,8 @@ sealed class AppRoute(val route: String) {
 // Test 路由进入后需隐藏底部导航栏（营造考试氛围），故不列入此集合
 private val topLevelRoutes = setOf(
     AppRoute.Memory.route,
-    AppRoute.Review.route
+    AppRoute.Review.route,
+    AppRoute.Settings.route
 )
 
 private data class TopLevelTab(
@@ -59,9 +63,10 @@ private data class TopLevelTab(
 )
 
 private val tabs = listOf(
-    TopLevelTab(AppRoute.Memory, "记忆", Icons.Filled.Star,      Icons.Outlined.Star),
-    TopLevelTab(AppRoute.Review, "复习", Icons.Filled.DateRange,  Icons.Outlined.DateRange),
-    TopLevelTab(AppRoute.Test,   "测试", Icons.Filled.Edit,       Icons.Outlined.Edit)
+    TopLevelTab(AppRoute.Memory,   "记忆", Icons.Filled.Star,      Icons.Outlined.Star),
+    TopLevelTab(AppRoute.Review,   "复习", Icons.Filled.DateRange,  Icons.Outlined.DateRange),
+    TopLevelTab(AppRoute.Test,     "测试", Icons.Filled.Edit,       Icons.Outlined.Edit),
+    TopLevelTab(AppRoute.Settings, "设置", Icons.Filled.Settings,  Icons.Outlined.Settings)
 )
 
 // ── MainScreen ────────────────────────────────────────────────────────────────
@@ -161,6 +166,9 @@ fun MainScreen(navTarget: String? = null) {
                         }
                     }
                 )
+            }
+            composable(AppRoute.Settings.route) {
+                SettingsScreen(contentPadding = innerPadding)
             }
 
             // ── 公式详情（横向滑入）──────────────────────────────────────────

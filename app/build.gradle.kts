@@ -72,6 +72,10 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
 
+    // DataStore + Tink (识别器偏好持久化 + Key 加密)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.tink.android)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

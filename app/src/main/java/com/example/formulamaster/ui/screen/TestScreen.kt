@@ -5,18 +5,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
+import com.example.formulamaster.data.RecognizerPreference
+import com.example.formulamaster.domain.MathOcrRecognizer
+import com.example.formulamaster.domain.RecognizerRegistry
+import com.example.formulamaster.domain.RecognizerSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,6 +78,15 @@ fun TestScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Sprint 1 Task 1.7：从用户偏好动态解析 Light/Deep 识别器
+    // DataStore Flow → settings 变化 → recognizer 立即重组（无需重启）
+    val pref = remember { RecognizerPreference(context.applicationContext) }
+    val settings by pref.settings.collectAsState(initial = RecognizerSettings())
+    val lightRecognizer: MathOcrRecognizer? =
+        remember(settings) { RecognizerRegistry.resolveLight(settings) }
+    val deepRecognizer: MathOcrRecognizer? =
+        remember(settings) { RecognizerRegistry.resolveDeep(settings) }
 
     // 错误惩罚：屏幕边缘红光闪烁（外置于 key() 保证切题后仍能完成动画）
     var flashError by remember { mutableStateOf(false) }
@@ -136,6 +147,8 @@ fun TestScreen(
                             progressText     = "${uiState.currentIndex + 1} / ${uiState.queue.size}",
                             answerPieces     = uiState.answerPieces,
                             canSubmit        = uiState.canSubmit,
+                            lightRecognizer  = lightRecognizer,
+                            deepRecognizer   = deepRecognizer,
                             onAppendPiece    = viewModel::appendPiece,
                             onPopPiece       = viewModel::popLastPiece,
                             onClearAnswer    = viewModel::clearAnswer,
@@ -198,6 +211,8 @@ private fun TestContent(
     progressText: String,
     answerPieces: List<String>,
     canSubmit: Boolean,
+    lightRecognizer: MathOcrRecognizer?,
+    deepRecognizer: MathOcrRecognizer?,
     onAppendPiece: (String) -> Unit,
     onPopPiece: () -> Unit,
     onClearAnswer: () -> Unit,
@@ -249,6 +264,8 @@ private fun TestContent(
         ) {
             TestCanvas(
                 onCandidateSelected = onAppendPiece,
+                lightRecognizer = lightRecognizer,
+                deepRecognizer = deepRecognizer,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -337,7 +354,7 @@ private fun AnswerBar(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp),
+            .height(96.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
@@ -349,19 +366,22 @@ private fun AnswerBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(rememberScrollState())
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
             ) {
                 if (pieces.isEmpty()) {
                     Text(
-                        text = "答题区（点击上方候选 LaTeX 拼接）",
+                        text = "答题区（采纳预览或选择候选拼接公式）",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterStart)
                     )
                 } else {
-                    Text(
-                        text = pieces.joinToString(" "),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontFamily = FontFamily.Monospace
+                    // 用 KaTeX 渲染，不再用 Text 显示 raw 源码。
+                    // pieces 间用空格连接 —— LaTeX 中空格作为 token 分隔符是安全的。
+                    MathFormulaView(
+                        latex = pieces.joinToString(" "),
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }

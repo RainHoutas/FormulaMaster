@@ -8,43 +8,98 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  html, body {
+  /* 关键发现：在 Android Compose 内嵌 WebView 中，html/body 的 `height: 100%`
+     在很多情况下被压扁（诊断数据 body.clientHeight=8）。但 100vh 工作正常
+     （window.innerHeight 反映真实 viewport），所以全部用 vh 单位。 */
+  html {
     background-color: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 8px 12px;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    place-items: center start;
+    padding: 4px 12px;
+    overflow: hidden;
   }
 
   #formula {
     color: #1A1C1E;
-    font-size: 1.4em;
-    line-height: 1.6;
-    text-align: center;
-    overflow-x: auto;
+    /* 字号：clamp(20px, 55vh, 52px)
+       - 80dp 容器 (~68vh px): 55vh ≈ 37px ← 预览条
+       - 96dp 容器 (~85vh px): 55vh ≈ 47px ← 答题区
+       - 大容器 (>200px): 被 max=52 钳住，避免标题区公式超大 */
+    font-size: clamp(20px, 55vh, 52px);
+    line-height: 1.2;
+    text-align: left;
   }
 
-  /* 深色模式：由 Kotlin 端注入 class="dark"，不依赖 WebView 的 prefers-color-scheme 支持 */
+  /* 关键修复：KaTeX displayMode 默认 .katex-display { margin: 1em 0 } 撑出 32px 上下空白 */
+  .katex-display {
+    margin: 0 !important;
+    text-align: left !important;
+  }
+
   body.dark #formula,
   body.dark .katex { color: #E3E2E6; }
 </style>
 </head>
 <body class="{{THEME}}">
-<!-- LaTeX 通过 data 属性传入，避免反斜杠在 JS 字符串字面量中被解析为转义序列 -->
 <div id="formula" data-latex="{{LATEX}}"></div>
 <script>
   var el = document.getElementById("formula");
   var latex = el.getAttribute("data-latex");
+
+  /**
+   * 仅当公式超出 viewport 时收缩。
+   * **关键**：用 window.innerWidth/Height（reliable），不用 body.clientWidth/Height（被压扁）。
+   */
+  function shrinkIfOverflow() {
+    var availW = window.innerWidth;
+    var availH = window.innerHeight;
+    if (availW <= 0 || availH <= 0) return false;
+
+    var actualW = el.scrollWidth;
+    var actualH = el.scrollHeight;
+    if (actualW <= 0 || actualH <= 0) return false;
+
+    var paddingW = 24;  // 横向 12px*2
+    var paddingH = 8;   // 纵向 4px*2
+    var effectiveW = availW - paddingW;
+    var effectiveH = availH - paddingH;
+
+    if (actualW <= effectiveW && actualH <= effectiveH) return true;
+
+    var ratio = Math.min(effectiveW / actualW, effectiveH / actualH) * 0.95;
+    var currentPx = parseFloat(window.getComputedStyle(el).fontSize) || 40;
+    var newPx = Math.max(12, currentPx * ratio);
+    el.style.fontSize = newPx + 'px';
+    return true;
+  }
+
+  function tryShrink(retries) {
+    if (shrinkIfOverflow()) return;
+    if (retries > 0) setTimeout(function() { tryShrink(retries - 1); }, 50);
+  }
+
   try {
     katex.render(latex, el, {
       throwOnError: false,
       displayMode: true,
       trust: false
     });
+    requestAnimationFrame(function() { tryShrink(8); });
   } catch (e) {
     el.textContent = latex;
   }
+
+  window.addEventListener('resize', function() {
+    el.style.fontSize = '';  // 清掉 inline，让 CSS clamp 重新生效
+    requestAnimationFrame(function() { tryShrink(3); });
+  });
 </script>
 </body>
 </html>
