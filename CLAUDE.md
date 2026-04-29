@@ -12,6 +12,33 @@
 - OCR 必须通过 MathOcrRecognizer 接口注入，当前实现为 MockMathRecognizer
 - 禁止在 UI 层感知任何具体识别 SDK
 
+## 方法论（用真金白银的踩坑换来的，违反必被打脸）
+
+### 1. 涉及外部 SDK / API / 服务的能力或定价，**必须先 WebFetch 官方页**，不靠训练记忆
+
+**踩坑案例**：
+- **ML Kit Digital Ink**：训练记忆里"支持手写识别"，靠记忆推荐为 L1 本地方案 → 用户实装后第一笔下笔崩溃，因为 ML Kit **不支持数学公式**（`fromLanguageTag("zxx-Zmth")` 始终返回 null）。该方案最终被拒绝，浪费一整轮迭代。
+- **Mathpix 免费层**：训练记忆里"个人开发者免费 1000 次/月"，写进用户文档 → 用户实际注册时发现需 **$19.99 一次性激活费 + 信用卡**，没有持续免费层。文档被迫重写，用户额度白白消耗。
+
+**强制规则**：
+- 写任何 API 接入代码前 → WebFetch 官方文档（端点 / 鉴权 / 请求体 / 响应字段）
+- 写任何用户面向的"免费额度 / 价格"声明前 → WebFetch 官方价格页
+- 文档里所有数字旁边标 "**以官方公示为准**" + 给出官方链接，便于用户自验
+- 涉及**产品边界限制**（"是否支持 X"），优先做最小可执行测试，不靠文档自证
+
+### 2. UI/渲染问题反复猜测无果时，**改用诊断驱动开发**
+
+**踩坑案例**：公式在 WebView 中渲染异常（先是过小、后是位置错乱、再是看不见），连续 5+ 轮按"我以为的根因"修，每次都失败 + 烧用户额度。最后在 HTML 模板插入 diag 角标显示 `body.clientWidth/Height`、`window.innerWidth/Height`、`devicePixelRatio`、`computed font-size`、`scrollWidth/Height` 等运行时数据 → 用户一张截图，发现 **`body.clientHeight = 8`**（CSS `height: 100%` 在 Compose 内嵌 WebView 中失效）—— 一轮根治。
+
+**强制规则**：
+- 同一个 UI/渲染 bug 修了 2 轮没好转 → 立刻停止猜测
+- 在出问题的层（HTML/CSS/JS、Compose Modifier、自定义 View 等）插入诊断输出（角标 / Toast / Logcat 都行，但要让用户**一张截图就能给出**）
+- 用诊断数据反推根因，再做下一轮修复
+
+### 3. 涉及方案选择（设置页位置 / API 默认选哪个 / UI 入口形式）必须先问用户
+
+不要替用户做决策。给出 A/B/C 方案 + 各自利弊，等用户拍板再动手。
+
 ## 包结构
 data/local/entity/   → Room Entity
 data/local/dao/      → DAO 接口
