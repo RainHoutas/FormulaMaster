@@ -4,13 +4,17 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.formulamaster.data.local.AppDatabase
+import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.repository.FormulaRepository
+import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.model.FormulaWithState
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,7 +54,8 @@ data class TestUiState(
 class TestViewModel(
     private val repository: FormulaRepository,
     private val studyStateDao: StudyStateDao,
-    private val reviewLogDao: ReviewLogDao
+    private val reviewLogDao: ReviewLogDao,
+    private val ocrFeedbackDao: OcrFeedbackDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TestUiState())
@@ -163,6 +168,33 @@ class TestViewModel(
         }
     }
 
+    // ── Sprint 1 Task 1.9：识别失败反馈入库 ──────────────────────────────────
+    //
+    // formulaId 为可选；TestScreen 调用时传当前题目 id，其他场景调用方可传 null。
+    // strokesJson / candidatesJson 一律 Gson 序列化；recognizerType 由调用方查 settings.lightRecognizerId / deepRecognizerId 提供（无绑定时传 "none"）。
+    fun submitOcrFeedback(
+        formulaId: String?,
+        recognizerType: String,
+        mode: RecognitionMode,
+        strokes: List<List<Pair<Float, Float>>>,
+        candidates: List<String>,
+        correctLatex: String
+    ) {
+        val gson = Gson()
+        val entity = OcrFeedbackEntity(
+            createdAt = System.currentTimeMillis(),
+            formulaId = formulaId,
+            recognizerType = recognizerType,
+            mode = mode.name,
+            strokesJson = gson.toJson(strokes),
+            candidatesJson = gson.toJson(candidates),
+            correctLatex = correctLatex
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            ocrFeedbackDao.insert(entity)
+        }
+    }
+
     // ── Task 5.4：顽固难点延后一周 ────────────────────────────────────────────
     //
     // 冲刺期对 lapses≥4 的 Leech 再次遗忘时，允许用户"跳过本周"暂避锋芒。
@@ -178,11 +210,13 @@ class TestViewModel(
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val db = AppDatabase.getInstance(context.applicationContext)
+                // Sprint 2 Task 2.1 修复 D：从 AppContainer 取数据库单例
+                val db = AppContainer.appDatabase(context.applicationContext)
                 return TestViewModel(
                     FormulaRepository(context.applicationContext, db.formulaDao()),
                     db.studyStateDao(),
-                    db.reviewLogDao()
+                    db.reviewLogDao(),
+                    db.ocrFeedbackDao()
                 ) as T
             }
         }

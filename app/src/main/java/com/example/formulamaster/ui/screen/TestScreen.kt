@@ -5,8 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.border
-import com.example.formulamaster.data.RecognizerPreference
+import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.domain.MathOcrRecognizer
+import com.example.formulamaster.domain.RecognitionMode
+import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +37,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,13 +61,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.SprintModeManager
+import com.example.formulamaster.domain.RecognizerType
 import com.example.formulamaster.domain.model.FormulaWithState
+import com.example.formulamaster.ui.component.FeedbackDialog
+import com.example.formulamaster.ui.component.FeedbackPayload
 import com.example.formulamaster.ui.component.MathFormulaView
 import com.example.formulamaster.ui.component.SprintSkipDialog
 import com.example.formulamaster.ui.component.TestCanvas
 import com.example.formulamaster.ui.util.vibrateError
 import com.example.formulamaster.ui.viewmodel.TestViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Task 5.1 / 5.2 / 5.3：严测模块
@@ -68,27 +79,42 @@ import kotlinx.coroutines.delay
  * - 5.1 基础环境：隐藏底部导航 + Close 退出 + Mastered 队列
  * - 5.2 手写输入：TestCanvas + 1.5s OCR + 答题区拼接
  * - 5.3 严厉裁决：[提交核对] AlertDialog + [完全正确]/[出现错误] + 惩罚机制
- *   （错误 → 200ms 强振动 + 屏幕边缘红光闪烁 + FSRS rating=1 + isTestMode=true）
+ *
+ * ## Sprint 1 Task 1.8 升级（友好降级 Snackbar）
+ * - 接 SnackbarHost，把 TestCanvas 的两类失败信号转为分类提示：
+ *   - 两档都未绑定 / 用户写第一笔 → "尚未绑定识别器" + 「去设置」action
+ *   - Deep 识别失败 → 用 [RecognizerErrorClassifier] 分类的简短文案
+ * - 「去设置」通过 [onNavigateToSettings] 回调上抛到 MainScreen，由 NavController 切换 Tab
+ *
+ * ## Sprint 1 Task 1.9 升级（识别失败反馈）
+ * - TestCanvas 「都不对」按钮 → [FeedbackDialog] → [TestViewModel.submitOcrFeedback] 入库
+ * - 入库后 Snackbar 提示"已记录，可在设置页导出"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TestScreen(
     onExit: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     viewModel: TestViewModel = viewModel(factory = TestViewModel.factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     // Sprint 1 Task 1.7：从用户偏好动态解析 Light/Deep 识别器
-    // DataStore Flow → settings 变化 → recognizer 立即重组（无需重启）
-    val pref = remember { RecognizerPreference(context.applicationContext) }
-    val settings by pref.settings.collectAsState(initial = RecognizerSettings())
+    // Sprint 2 Task 2.1 修复 D + H：
+    // - D: AppContainer 单例 → Tink AEAD 一次性初始化
+    // - H: preference.settings 已是 process 级 hot StateFlow → collectAsState 立即拿到当前值，
+    //   不再为每个 ViewModel 重新订阅 cold flow（消除"进 Test 不跟手"感）
+    val pref = remember { AppContainer.recognizerPreference(context) }
+    val settings by pref.settings.collectAsState()
     val lightRecognizer: MathOcrRecognizer? =
         remember(settings) { RecognizerRegistry.resolveLight(settings) }
     val deepRecognizer: MathOcrRecognizer? =
         remember(settings) { RecognizerRegistry.resolveDeep(settings) }
 
-    // 错误惩罚：屏幕边缘红光闪烁（外置于 key() 保证切题后仍能完成动画）
+    // 错误惩罚：屏幕边缘红光闪烁
     var flashError by remember { mutableStateOf(false) }
     LaunchedEffect(flashError) {
         if (flashError) {
@@ -97,9 +123,43 @@ fun TestScreen(
         }
     }
 
-    // Task 5.4：冲刺期 Leech 再次失败时的跳过弹窗。
-    // 冻结刚才那道题的 formulaId（submit 已推进到下一题，这里作用于"上一题"）
+    // Task 5.4：冲刺期 Leech 再次失败时的跳过弹窗
     var pendingLeechSkipId by remember { mutableStateOf<String?>(null) }
+
+    // Sprint 1 Task 1.9：反馈对话框待显示载荷（null = 关闭）
+    var pendingFeedback by remember { mutableStateOf<FeedbackPayload?>(null) }
+
+    // ── Snackbar 触发函数（提取出来便于复用） ─────────────────────────────────
+    fun showUnboundSnackbar() {
+        coroutineScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = "尚未绑定识别器，写下来也不会识别",
+                actionLabel = "去设置",
+                duration = SnackbarDuration.Long,
+                withDismissAction = true
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                onNavigateToSettings()
+            }
+        }
+    }
+
+    fun showDeepFailureSnackbar(throwable: Throwable) {
+        val msg = RecognizerErrorClassifier.classify(throwable)
+        coroutineScope.launch {
+            // Key 失效类错误带"去设置"action；其他网络错误只显示文案
+            val needsSettings = msg.contains("Key")
+            val result = snackbarHostState.showSnackbar(
+                message = "强识别失败：$msg",
+                actionLabel = if (needsSettings) "去设置" else null,
+                duration = SnackbarDuration.Short,
+                withDismissAction = true
+            )
+            if (needsSettings && result == SnackbarResult.ActionPerformed) {
+                onNavigateToSettings()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -114,7 +174,8 @@ fun TestScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -140,7 +201,6 @@ fun TestScreen(
 
                 else -> {
                     val item = uiState.currentItem ?: return@Box
-                    // 切题时刷新 Canvas 内部笔画 / OCR 候选的本地状态
                     key(item.formula.formulaId) {
                         TestContent(
                             item             = item,
@@ -152,16 +212,17 @@ fun TestScreen(
                             onAppendPiece    = viewModel::appendPiece,
                             onPopPiece       = viewModel::popLastPiece,
                             onClearAnswer    = viewModel::clearAnswer,
+                            onWritingButNoRecognizer = ::showUnboundSnackbar,
+                            onDeepFailure    = ::showDeepFailureSnackbar,
+                            onReportFeedback = { payload -> pendingFeedback = payload },
                             onSubmitCorrect  = { costMs ->
                                 viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
                             },
                             onSubmitError    = { costMs ->
-                                // Task 5.4：Leech（lapses≥4）惩罚强化——振动时长双倍 400ms
                                 val isLeech = item.lapses >= 4
                                 vibrateError(context, durationMs = if (isLeech) 400L else 200L)
                                 flashError = true
                                 viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
-                                // 冲刺期 + Leech：弹窗询问"跳过本周"
                                 if (isLeech && SprintModeManager.isActive()) {
                                     pendingLeechSkipId = item.formula.formulaId
                                 }
@@ -172,7 +233,7 @@ fun TestScreen(
                 }
             }
 
-            // 错误闪烁红框（外层 overlay，不受 key() 重组影响）
+            // 错误闪烁红框
             AnimatedVisibility(
                 visible = flashError,
                 enter = fadeIn(tween(100)),
@@ -199,6 +260,37 @@ fun TestScreen(
                     onContinue = { pendingLeechSkipId = null }
                 )
             }
+
+            // Sprint 1 Task 1.9：反馈对话框
+            pendingFeedback?.let { payload ->
+                FeedbackDialog(
+                    strokes = payload.strokes,
+                    candidates = payload.candidates,
+                    onDismiss = { pendingFeedback = null },
+                    onSubmit = { correctLatex ->
+                        // 解析当时使用的识别器类型（按 mode 取 Light 或 Deep 绑定）
+                        val recType: RecognizerType? = when (payload.mode) {
+                            RecognitionMode.Light -> settings.lightRecognizerId
+                            RecognitionMode.Deep  -> settings.deepRecognizerId
+                        }
+                        viewModel.submitOcrFeedback(
+                            formulaId      = uiState.currentItem?.formula?.formulaId,
+                            recognizerType = recType?.name ?: "none",
+                            mode           = payload.mode,
+                            strokes        = payload.strokes,
+                            candidates     = payload.candidates,
+                            correctLatex   = correctLatex
+                        )
+                        pendingFeedback = null
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "已记录反馈，可在设置页导出 JSON",
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -216,11 +308,13 @@ private fun TestContent(
     onAppendPiece: (String) -> Unit,
     onPopPiece: () -> Unit,
     onClearAnswer: () -> Unit,
+    onWritingButNoRecognizer: () -> Unit,
+    onDeepFailure: (Throwable) -> Unit,
+    onReportFeedback: (FeedbackPayload) -> Unit,
     onSubmitCorrect: (costMs: Long) -> Unit,
     onSubmitError: (costMs: Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 本题开始时刻，用于统计 costTimeMs
     val questionStartMs = remember { System.currentTimeMillis() }
     var showJudgmentDialog by remember { mutableStateOf(false) }
 
@@ -266,6 +360,9 @@ private fun TestContent(
                 onCandidateSelected = onAppendPiece,
                 lightRecognizer = lightRecognizer,
                 deepRecognizer = deepRecognizer,
+                onWritingButNoRecognizer = onWritingButNoRecognizer,
+                onDeepFailure = onDeepFailure,
+                onReportFeedback = onReportFeedback,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -377,8 +474,6 @@ private fun AnswerBar(
                         modifier = Modifier.align(Alignment.CenterStart)
                     )
                 } else {
-                    // 用 KaTeX 渲染，不再用 Text 显示 raw 源码。
-                    // pieces 间用空格连接 —— LaTeX 中空格作为 token 分隔符是安全的。
                     MathFormulaView(
                         latex = pieces.joinToString(" "),
                         modifier = Modifier.fillMaxSize()
@@ -451,4 +546,3 @@ private fun SessionCompleteState(modifier: Modifier = Modifier) {
         }
     }
 }
-

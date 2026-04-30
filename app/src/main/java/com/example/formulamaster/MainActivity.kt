@@ -17,13 +17,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import com.example.formulamaster.data.local.AppDatabase
+import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.data.worker.DailyReminderWorker
 import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.ui.component.WebViewPool
 import com.example.formulamaster.ui.screen.MainScreen
 import com.example.formulamaster.ui.theme.FormulaMasterTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -42,7 +44,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val db = AppDatabase.getInstance(applicationContext)
+        // Sprint 2 Task 2.1 修复 D 配套：通过 AppContainer 取数据库单例，
+        // 与 ViewModel 工厂共享同一实例
+        val db = AppContainer.appDatabase(applicationContext)
         val repository = FormulaRepository(applicationContext, db.formulaDao())
         lifecycleScope.launch {
             // 1. 首次启动：预加载公式数据
@@ -51,16 +55,31 @@ class MainActivity : ComponentActivity() {
             SprintModeManager.applyIfNeeded(db.studyStateDao())
         }
 
+        // Sprint 2 Task 2.1 后台冷启动预热：把"首次进 Tab 才付钱"的开销前置到 App 启动时
+        // ── 重点是 RecognizerPreference 内部 Tink AEAD 的首次初始化（约 100ms 一次性）
+        //    和 DataStore 第一次读盘。在 IO dispatcher 后台跑，不阻塞 setContent
+        lifecycleScope.launch(Dispatchers.IO) {
+            val pref = AppContainer.recognizerPreference(applicationContext)
+            // 用 first() 消费一次 DataStore Flow（hot stream，collect 不会自然结束），
+            // 这次访问会触发：DataStore 读盘 → Tink lazy aead 注册 → keyset 解密
+            // 之后 SettingsScreen / TestScreen 进入时直接命中已就绪的实例
+            try {
+                pref.settings.first()
+            } catch (_: Exception) {
+                // 预热失败不影响主流程；真实使用路径有自己的错误兜底
+            }
+        }
+
         // Task 6.1-a：请求通知权限（Android 13+）
         requestNotificationPermissionIfNeeded()
 
         // Task 6.1-b：调度每日 8:00 提醒（KEEP 策略，幂等）
         DailyReminderWorker.schedule(applicationContext)
 
-        // Task 6.2：预热 WebView 复用池（容量 3，提前建好 1 个消除首帧白屏）
-        // 放在主线程空闲时执行：Window 完成首次布局后才会触发 post，
-        // 不阻塞 setContent 的渲染流水线。
-        window.decorView.post { WebViewPool.warmUp(applicationContext, count = 1) }
+        // Task 6.2：预热 WebView 复用池（容量 3）
+        // Sprint 2 Task 2.1 调整：从 1 提升到 2 —— 详情页同时挂载 2 个 MathFormulaView，
+        // 1 个不够导致第一个进详情页时仍会即时新建第二个 WebView（logcat 已确认）
+        window.decorView.post { WebViewPool.warmUp(applicationContext, count = 2) }
 
         // Task 6.1-c：读取通知携带的导航目标（冷启动场景）
         navTarget = intent?.getStringExtra(DailyReminderWorker.EXTRA_START_TAB)

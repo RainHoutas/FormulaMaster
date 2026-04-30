@@ -1,7 +1,8 @@
 package com.example.formulamaster.ui.screen
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
+import android.util.Log
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -76,6 +78,13 @@ private val tabs = listOf(
  *   null 表示正常启动。LaunchedEffect 监听变化，App 在后台时 onNewIntent 更新
  *   MainActivity.navTarget → 此处 Compose State 变化 → 触发导航。
  */
+// [PerfDiag] Sprint 2 Task 2.1 诊断（已收尾，2026-04-30）。开关复位 false，将来排性能问题改 true 即可。
+private const val DIAG_ENABLED = false
+private const val DIAG_TAG = "PerfDiag.Nav"
+
+// Sprint 2 Task 2.1 修复 B：NavHost 默认淡入淡出时长（毫秒）
+private const val NAV_FADE_MS = 120
+
 @Composable
 @Preview
 fun MainScreen(navTarget: String? = null) {
@@ -83,6 +92,13 @@ fun MainScreen(navTarget: String? = null) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
+
+    // [PerfDiag] Sprint 2 Task 2.1：路由变化时序日志，用于诊断 Tab 切换卡顿/残留
+    LaunchedEffect(currentRoute) {
+        if (DIAG_ENABLED) {
+            Log.d(DIAG_TAG, "route → $currentRoute @ ${System.currentTimeMillis()}")
+        }
+    }
 
     // Task 6.1：响应通知导航（冷启动 / 热启动均生效）
     LaunchedEffect(navTarget) {
@@ -135,11 +151,16 @@ fun MainScreen(navTarget: String? = null) {
         NavHost(
             navController = navController,
             startDestination = AppRoute.Memory.route,
-            // Tab 切换无动画，子页面路由各自声明 slide
-            enterTransition    = { EnterTransition.None },
-            exitTransition     = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition  = { ExitTransition.None }
+            // Sprint 2 Task 2.1 修复 B：120ms 短淡入淡出。
+            // 此前用 EnterTransition.None / ExitTransition.None 切换瞬间没有遮罩
+            // → 旧页面 dispose 但屏幕缓冲未刷新 → 用户看到上一屏元素残留 + "闪一下"。
+            // 120ms 是经验值：足够掩盖新页面 layout/measure/draw 的几帧延迟，
+            // 又不会让用户感觉切换"拖沓"。详情页 composable 自带 slideInHorizontally，
+            // 会覆盖 NavHost 默认，互不影响。
+            enterTransition    = { fadeIn(tween(NAV_FADE_MS)) },
+            exitTransition     = { fadeOut(tween(NAV_FADE_MS)) },
+            popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+            popExitTransition  = { fadeOut(tween(NAV_FADE_MS)) }
         ) {
             // ── Tab 主页面 ────────────────────────────────────────────────────
             composable(AppRoute.Memory.route) {
@@ -156,8 +177,26 @@ fun MainScreen(navTarget: String? = null) {
             composable(AppRoute.Test.route) {
                 TestScreen(
                     onExit = {
-                        // 退出测试 → 返回记忆 Tab（底部导航恢复）
-                        navController.navigate(AppRoute.Memory.route) {
+                        // Sprint 2 Task 2.1 修复 E：用 navigateUp 退到上一个 destination，
+                        // 而不是写死跳 Memory。这样从详情页 / 其他 push 路径进 Test 时，
+                        // 退出能回到用户实际的"来源页"。
+                        // 注：从 NavBar 直接点 Test Tab 进入时，由于 NavBar 切换的
+                        // popUpTo + saveState 行为，上一栈帧仍是 Memory（startDestination），
+                        // 所以这种情况退出仍回 Memory（行为不变）。
+                        // 完全消除该限制需把 Test 移出 NavBar，已加入改进点池。
+                        if (!navController.navigateUp()) {
+                            navController.navigate(AppRoute.Memory.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    // Sprint 1 Task 1.8：Snackbar「去设置」action 直跳设置 Tab
+                    onNavigateToSettings = {
+                        navController.navigate(AppRoute.Settings.route) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }

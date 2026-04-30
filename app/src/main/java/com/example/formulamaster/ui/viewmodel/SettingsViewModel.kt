@@ -1,19 +1,26 @@
 package com.example.formulamaster.ui.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.RecognizerPreference
+import com.example.formulamaster.data.local.dao.OcrFeedbackDao
+import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
 import com.example.formulamaster.domain.RecognizerType
+import com.google.gson.GsonBuilder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Sprint 1 Task 1.7 — SettingsViewModel
@@ -26,16 +33,19 @@ import kotlinx.coroutines.launch
  * - [testConnection]：发起最小测试请求验证 Key 有效性
  */
 class SettingsViewModel(
-    private val preference: RecognizerPreference
+    private val preference: RecognizerPreference,
+    private val ocrFeedbackDao: OcrFeedbackDao,
+    private val appContext: Context
 ) : ViewModel() {
 
-    /** 当前持久化的识别器配置，DataStore 任意写入后立即 emit。 */
+    /**
+     * 当前持久化的识别器配置，DataStore 任意写入后立即 emit。
+     *
+     * Sprint 2 Task 2.1 修复 H：直接复用 [RecognizerPreference] 内部的 process 级 hot StateFlow，
+     * 不再用 `stateIn(viewModelScope)` 包一层 —— 后者会让每个 SettingsViewModel 重建时都要
+     * 重新订阅 cold dataStore.data → 重做 DataStore 读盘 + Tink 解密，造成"每次进设置页加载一小下"。
+     */
     val settings: StateFlow<RecognizerSettings> = preference.settings
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = RecognizerSettings()
-        )
 
     private val _testStatus = MutableStateFlow<Map<RecognizerType, TestConnectionStatus>>(emptyMap())
     val testStatus: StateFlow<Map<RecognizerType, TestConnectionStatus>> = _testStatus.asStateFlow()
@@ -112,7 +122,7 @@ class SettingsViewModel(
                 // 未抛异常 = HTTP 2xx + 服务端业务通过 = Key 鉴权确认通过
                 TestConnectionStatus.Success
             } catch (e: Exception) {
-                TestConnectionStatus.Failed(reasonOf(e))
+                TestConnectionStatus.Failed(RecognizerErrorClassifier.classify(e))
             }
             // 仅在请求实际完成后记录时间戳（用作下次冷却起点）
             val completedAt = System.currentTimeMillis()
@@ -138,15 +148,61 @@ class SettingsViewModel(
         _testStatus.value = _testStatus.value - type
     }
 
-    private fun reasonOf(e: Throwable): String = when (e) {
-        is java.net.UnknownHostException -> "无网络连接"
-        is java.net.SocketTimeoutException -> "网络超时"
-        is retrofit2.HttpException -> when (e.code()) {
-            401, 403 -> "Key 无效或已过期"
-            500, 502, 503 -> "服务暂时不可用"
-            else -> "HTTP ${e.code()}"
+    // ── Sprint 1 Task 1.9：识别失败反馈样本管理 ──────────────────────────────
+
+    /** 已收集的反馈样本数量，响应式刷新（DAO countFlow）。 */
+    val feedbackCount: StateFlow<Int> = ocrFeedbackDao.countFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = 0
+        )
+
+    /** 导出结果状态（一次性事件，用 String? 简化处理；显示后由 UI 调 [clearExportResult] 清掉）。 */
+    private val _exportResult = MutableStateFlow<ExportResult?>(null)
+    val exportResult: StateFlow<ExportResult?> = _exportResult.asStateFlow()
+
+    fun clearExportResult() {
+        _exportResult.value = null
+    }
+
+    /**
+     * 把全部反馈样本导出为 JSON 数组到用户通过 SAF 选择的目标 Uri。
+     *
+     * 失败原因分类（写入 [exportResult]）：
+     * - 无样本：UI 提前禁用按钮，正常路径不会到这；若到了返回 NoSamples
+     * - I/O 错误（用户撤销 / 存储已满 / 权限丢失）→ Failed
+     */
+    fun exportFeedbackJson(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = ocrFeedbackDao.getAll()
+            if (list.isEmpty()) {
+                _exportResult.value = ExportResult.NoSamples
+                return@launch
+            }
+            try {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                val json = gson.toJson(list)
+                withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openOutputStream(uri, "wt")?.use { os ->
+                        os.write(json.toByteArray(Charsets.UTF_8))
+                        os.flush()
+                    } ?: throw java.io.IOException("openOutputStream returned null")
+                }
+                _exportResult.value = ExportResult.Success(list.size)
+            } catch (e: Exception) {
+                _exportResult.value = ExportResult.Failed(
+                    RecognizerErrorClassifier.classify(e)
+                )
+            }
         }
-        else -> e.message ?: e.javaClass.simpleName
+    }
+
+    /** 清空所有反馈样本（带二次确认由 UI 层负责）。 */
+    fun clearFeedback() {
+        viewModelScope.launch(Dispatchers.IO) {
+            ocrFeedbackDao.clearAll()
+        }
     }
 
     companion object {
@@ -162,10 +218,27 @@ class SettingsViewModel(
 
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                SettingsViewModel(RecognizerPreference(context.applicationContext)) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val app = context.applicationContext
+                // Sprint 2 Task 2.1 修复 D：从 AppContainer 取单例，
+                // 替代之前每次 `RecognizerPreference(app)` 新建实例的做法
+                return SettingsViewModel(
+                    preference = AppContainer.recognizerPreference(app),
+                    ocrFeedbackDao = AppContainer.appDatabase(app).ocrFeedbackDao(),
+                    appContext = app
+                ) as T
+            }
         }
     }
+}
+
+/**
+ * Sprint 1 Task 1.9 — 反馈 JSON 导出结果。
+ */
+sealed class ExportResult {
+    data object NoSamples : ExportResult()
+    data class Success(val count: Int) : ExportResult()
+    data class Failed(val reason: String) : ExportResult()
 }
 
 /**

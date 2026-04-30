@@ -35,7 +35,7 @@ status: 进行中
 
 ---
 
-## Sprint 1：手写识别真实落地（2026-04-24 ~ 进行中）
+## Sprint 1：手写识别真实落地（2026-04-24 ~ 2026-04-29）
 
 ### 背景
 原型阶段 `MockMathRecognizer` 始终返回固定候选，无法体现真实默写体验。本 Sprint 落地两路云端 API 识别方案：
@@ -249,23 +249,61 @@ status: 进行中
     - **诊断驱动开发**：当反复猜测失败时，在 HTML 模板插入 diag 角标显示 body/win/dpr/font 等运行时数据，
       用户一张截图就能定位，避免靠 Logcat 反复来回
 
-- [ ] **Task 1.8** 识别器不可用时的友好降级
+- [x] **Task 1.8** 识别器不可用时的友好降级 ✅ 2026-04-29
   - 场景覆盖：
-    - **两档都未绑定**：TestCanvas 写字时不触发任何请求，显示 Snackbar"尚未绑定识别器" + 「去设置」按钮
-    - **绑定的识别器变为不可用**（用户清空了 Key）：等同未绑定处理
-    - **请求失败**（Key 无效 / 网络超时 / 无网络 / 服务异常）：分类 Snackbar 文案
-  - 识别异常分类展示（与 Task 1.4 已实现的错误兜底联动）：
-    - "Key 无效，请检查设置" → 引导设置页
-    - "网络超时，请稍后重试"
-    - "无网络连接，请检查网络"
-    - "服务异常，请稍后重试"
-  - **Done 标准**：所有失败状态下 TestCanvas 不崩溃，Snackbar 文案准确分类，「去设置」入口直达 SettingsScreen
+    - **两档都未绑定**：用户写下第一笔时触发一次 Snackbar"尚未绑定识别器，写下来也不会识别"
+      + 「去设置」action（不重复弹，直到清空画布）
+    - **绑定的识别器变为不可用**（用户清空了 Key）：因 `RecognizerRegistry.resolveLight/Deep`
+      返回 null，等同未绑定处理；同一 Snackbar 路径
+    - **Deep 识别请求失败**（Key 无效 / 网络超时 / 无网络 / 5xx 等）：使用
+      [`RecognizerErrorClassifier`] 分类的简短文案，Snackbar 显示"强识别失败：&lt;原因&gt;"
+      Key 类错误（401/403）额外附带「去设置」action
+    - **Light 识别失败**：完全静默（仅 Logcat），符合 Q3 决策——自动防抖每次失败 Snackbar 太烦扰
+  - 实现要点：
+    - 新建 `domain/RecognizerErrorClassifier.kt`（pure object），与 `SettingsViewModel.testConnection`
+      共用同一份分类逻辑，避免两处分别维护
+    - `TestCanvas` 移除内部 `deepFailureMessage` 红字状态，错误信号通过 `onDeepFailure: (Throwable) -> Unit`
+      callback 上抛宿主，遵循 UDF
+    - `TestCanvas` 加 `onWritingButNoRecognizer: () -> Unit`，由内部 `unboundNotifiedThisSession`
+      去重避免重复 Snackbar
+    - `MainScreen.kt` 在 `composable(AppRoute.Test.route)` 中传入 `onNavigateToSettings` 回调，
+      切到 Settings Tab（保留底部导航 + 状态恢复）
+  - **Done 标准**：
+    - ✅ BUILD SUCCESSFUL on Gradle 9.4.1 / AGP 9.2.0 / KSP 2.3.2
+    - ✅ 既有单元测试全部通过（无回归）
+    - 真机端到端验收（待用户操作）：
+      - 不绑定任何识别器，进入严测画布写字 → "尚未绑定识别器" Snackbar 弹出
+      - 点「去设置」→ 直接切到设置 Tab
+      - 设错 token 后画字 + 点强识别 → "强识别失败：Key 无效或已过期" Snackbar
+      - 飞行模式下点强识别 → "强识别失败：无网络连接" Snackbar
 
-- [ ] **Task 1.9** 识别失败反馈机制
-  - TestCanvas 候选展示区旁加一个"都不对？"小按钮
-  - 点击后保存当前笔画 + 用户手输正确 LaTeX 到 `data/local/entity/OcrFeedbackEntity`
-  - 提供导出为 JSON 的入口（设置页）
-  - **Done 标准**：失败样本正常落库，导出 JSON 格式可读；累计到一定量作为将来可能 L2 自训练的数据源
+- [x] **Task 1.9** 识别失败反馈机制 ✅ 2026-04-29
+  - 数据层：
+    - 新建 `data/local/entity/OcrFeedbackEntity`（id / createdAt / formulaId? / recognizerType /
+      mode / strokesJson / candidatesJson / correctLatex）
+    - 新建 `data/local/dao/OcrFeedbackDao`（insert / getAll / countFlow / clearAll）
+    - `AppDatabase` 升 v1 → v2，加 `ocr_feedback` 表；用 `fallbackToDestructiveMigration(dropAllTables=true)`
+      （打磨阶段允许重置，formulas.json 自动重新预加载）
+  - UI 层：
+    - `TestCanvas` PreviewBar 加「都不对」TextButton（material-icons-core 不含 ThumbDown，
+      用文字标签替代），点击通过 `onReportFeedback(FeedbackPayload)` 上抛
+    - 新建 `ui/component/FeedbackDialog`：等比缩放笔画预览 + 候选 chip 列表 + 手输正确 LaTeX 输入框
+    - `TestScreen` 持有 `pendingFeedback: FeedbackPayload?` state，弹 Dialog + 入库后 Snackbar 提示
+    - `TestViewModel.submitOcrFeedback()`：Gson 序列化 strokes/candidates 后落库
+  - 导出能力：
+    - 设置页底部加「识别反馈」区：显示已收集样本数（响应式，DAO countFlow 驱动）+
+      「导出 JSON」+「清空」按钮（清空带二次确认）
+    - 「导出 JSON」走 SAF（`ActivityResultContracts.CreateDocument("application/json")`），
+      文件名带时间戳前缀 `formulamaster_ocr_feedback_yyyyMMdd_HHmmss.json`，避开存储权限
+    - 导出结果通过 `ExportResult` sealed class（NoSamples / Success / Failed）反馈到 SettingsScreen Snackbar
+  - **Done 标准**：
+    - ✅ BUILD SUCCESSFUL；既有单元测试全部通过
+    - 真机端到端验收（待用户操作）：
+      - 严测页写字识别后点「都不对」→ Dialog 显示笔画 + 候选 + 输入框
+      - 输入正确 LaTeX 提交 → "已记录反馈，可在设置页导出 JSON" Snackbar
+      - 设置页"识别反馈"区数字 +1
+      - 点「导出 JSON」→ SAF 选位置保存 → 打开文件可读、字段完整
+      - 点「清空」+ 二次确认 → 数字归零
 
 ### 验收标准（全部 Task 完成后）
 
@@ -278,9 +316,146 @@ status: 进行中
 
 ---
 
-## Sprint 2+（待从改进点池生成）
+## Sprint 2：性能修复 + 时间设置体系（2026-04-29 ~ 进行中）
 
-> Sprint 1 完成后，扫描 [`../改进点池.md`](../改进点池.md) 的"待评估"分区生成。
+### 背景
+
+Sprint 1 收尾后用户反馈了一组改进点（见 [`../改进点池.md`](../改进点池.md)）。本 Sprint 取
+TOP 5 条目落地：
+- **P0 卡顿/残留**：独立度高，用诊断驱动定位 → 修复，奠定后续 UI 打磨阶段的体验底盘
+- **P0 复习时间刷新点**：解决"上下半场复习割裂"问题，对齐用户心智模型
+- **P1 冲刺日期自设置 + Onboarding**：与刷新时间设置共用 DataStore + 设置页 boilerplate
+
+不纳入本 Sprint 的 P0 "学习/复习流程重构"——范围未定，按方法论 #3 待用户细化后再开。
+
+### 关键决策记录
+
+- **默认刷新时刻**：08:00（用户拍板，2026-04-29）
+- **默认冲刺目标日期**：动态计算为"当前年份 12 月 20 日"（考研日期常用值）
+- **时区**：读取 `ZoneId.systemDefault()`，UI 仅展示不允许修改
+- **学习/复习流程重构**：本 Sprint 不起 RFC，等用户细化痛点后单独立项
+
+### Task 列表
+
+- [x] **Task 2.1** 切换界面卡顿 + 残留诊断与修复 ✅ 2026-04-30
+  - **Phase A · 诊断**（按方法论 #2，1 轮拿到结论）：
+    - `WebViewPool` 加 acquire/release/warmUp 时序日志（DIAG_TAG = `PerfDiag.Pool`）
+    - `MathFormulaView` 加 ENTER/FACTORY/UPDATE/READY/LEAVE/LOAD 事件日志（`PerfDiag.MathView`）
+    - `MainScreen` 加路由变化时间戳日志（`PerfDiag.Nav`）
+    - 用户真机（Nothing A065 / Android 16）复现 + 提供两份完整 logcat（22:16:43 / 08:37:22）
+    - 三类根因定位：WebView release 不清空旧内容 / NavHost 全无 transition / 详情页同时挂 2 个 WebView 但池只预热 1 个
+  - **Phase B · 修复**（共 8 处）：
+    - **A** `WebViewPool.release` 增加 `webView.loadUrl("about:blank")`，避免复用时旧 KaTeX 残留
+    - **B** NavHost 全部 transition 改为 `fadeIn/fadeOut(tween(120))`（详情页 slide 不受影响）
+    - **C** `MathFormulaView` 重构：`LaunchedEffect(latex, isDark)` 接管加载；`WebViewClient.onPageFinished` 触发 `contentReady=true`；上层 `Box` 用 `AnimatedVisibility` 渲染 surface 同色遮罩，加载完淡出 200ms
+    - **D** 新建 `data/AppContainer.kt`：进程级 service locator，托管 `RecognizerPreference` + `AppDatabase` 单例，避免每次 ViewModel 创建都重建 EncryptedKeyStore
+    - **E** TestScreen `onExit` 改为 `navController.navigateUp()`（兜底回 Memory），让 Memory→详情→某入口进入 Test 时退出能回详情页
+    - **F** "Test 移出 NavBar"作为改进点加入改进点池（UX 重构，本 Sprint 不做）
+    - **G** `MainActivity.onCreate` 加冷启动后台预热（Dispatchers.IO）：`pref.settings.first()` 触发 DataStore 读盘 + Tink AEAD lazy 初始化；`WebViewPool.warmUp(count = 2)` 提升到 2 个（详情页同时挂 2 个）
+    - **H** `RecognizerPreference.settings` 升级为 process 级 hot StateFlow（`stateIn(applicationScope, Eagerly, ...)`），`SettingsViewModel` 去掉自己的 `stateIn`；消除"每次进 SettingsScreen 都要重做 DataStore 读盘 + Tink 解密"的根因
+  - **遗留**：
+    - 冷启动后首次进 Settings 仍可感知到"加载一小下"。已加入改进点池（[性能] 进一步优化
+      SettingsScreen 进入瞬间的"加载感"，P2）。可能根因为 SettingsScreen 自身 Compose 树深
+      + ExposedDropdownMenuBox / SAF launcher 注册等，需 Profiler 进一步定位
+  - **诊断代码处理**：所有 `DIAG_ENABLED` 开关复位为 `false`，**保留代码备查**，将来再排性能问题打开即可。搜索 `[PerfDiag]` 可一键定位
+  - **Done 标准**：
+    - ✅ BUILD SUCCESSFUL；既有单元测试无回归
+    - ✅ 真机连续 Tab 切换 + push/pop 详情页无可见残留（用户确认"已经好了很多"）
+    - ✅ 详情页 / 复习卡片切换无 KaTeX 残留
+    - ✅ Test 切换流畅度大幅改善（用户确认"目前可使用"）
+    - ⏳ Settings 加载感残留 → 已转为改进点池条目，下个 Sprint 视情况评估
+  - **关联文件**：
+    - 新建：`data/AppContainer.kt`、`domain/RecognizerErrorClassifier.kt`（属 Sprint 1 Task 1.8 但本 Task 引用）
+    - 重写：`ui/component/MathFormulaView.kt`、`ui/component/WebViewPool.kt`
+    - 修改：`ui/screen/MainScreen.kt`、`ui/screen/TestScreen.kt`、`ui/viewmodel/SettingsViewModel.kt`、`ui/viewmodel/TestViewModel.kt`、`data/RecognizerPreference.kt`、`MainActivity.kt`
+
+- [ ] **Task 2.2** ReviewScheduler 复习时间截断到当日刷新时刻 🔥
+  - 算法层重构：
+    - `domain/ReviewScheduler.kt` 的 `calculate()` 返回的 `nextReviewTime` 截断到
+      "目标日 08:00（本地时区）"，而非毫秒精度
+    - 新增工具函数 `truncateToRefreshHour(timeMs: Long, hourOfDay: Int, zoneId: ZoneId): Long`
+    - 算法接收 `hourOfDay` 参数（默认 8），方便单测覆盖
+  - 数据查询层调整：
+    - `data/local/dao/StudyStateDao.kt` 中 `getDueFormulas` 的 "due" 判断不变（nextReviewTime ≤ now），
+      但因为 nextReviewTime 已经截断到刷新点，效果是"过当日 08:00 才进入可复习"
+    - 单天内多次完成的复习在第二天 08:00 同时变可复习（消除割裂）
+  - 逾期判断：超过当日 24:00 仍未复习 → 算"逾期"，下次 calculate 的 elapsed 天数从 nextReviewTime 算起
+  - **单元测试**：
+    - `ReviewSchedulerTest` 补充用例：
+      - 同一天内多次复习的 nextReviewTime 应落到同一个刷新时刻
+      - 不同时区下截断结果正确（UTC / Asia/Shanghai / America/Los_Angeles）
+      - 跨 DST 边界（北半球 3 月切换日）截断不抖动
+  - **Done 标准**：
+    - BUILD SUCCESSFUL；单元测试新增 ≥6 条且全部通过
+    - 既有 `ReviewSchedulerTest` 6 条不回归
+
+- [ ] **Task 2.3** 时区 + 复习刷新时间用户设置 UI
+  - 新建 `data/AppPreference.kt`（DataStore Preferences-backed）：
+    - `dailyRefreshHourOfDay: Int`（默认 8）
+    - `targetExamDate: Long`（默认值由 Task 2.4 落实，本 Task 占位）
+    - 时区不存储，运行期 `ZoneId.systemDefault()` 直读
+    - 响应式 `Flow<AppSettings>` 暴露
+  - 设置页加新区"学习计划"（位于"识别档位绑定"和"识别反馈"之间）：
+    - **复习刷新时间**：TimePicker（24h 制），描述文案"每天 X 点起开始计算今日复习"
+    - 时区只读展示：`Text("当前时区：${ZoneId.systemDefault()}")`
+  - `ReviewScheduler` 调用方（ReviewViewModel / TestViewModel）从 `AppPreference.dailyRefreshHourOfDay`
+    取值传入 calculate
+  - **Done 标准**：
+    - BUILD SUCCESSFUL
+    - 设置页能改刷新时间，重启 App 后保留（DataStore 验证）
+    - 改后立即生效（DataStore Flow → ViewModel 重新订阅 → 下一次 calculate 用新值）
+
+- [ ] **Task 2.4** 冲刺目标日期用户自设置
+  - `data/AppPreference.kt` 加 `targetExamDate: Long`：
+    - 默认值动态计算："当前年份 12 月 20 日 00:00（本地时区）"
+    - 用户已设过 → 持久化值；未设过 → 默认值
+  - `data/AppConfig.kt` 中硬编码 `targetExamDate` 标 deprecated，改读 AppPreference
+  - `domain/SprintModeManager.kt`：
+    - `isActive(targetExamDate: Long)` 接受参数（不再读全局常量）
+    - 调用方从 ViewModel 注入 AppPreference 流
+  - 设置页"学习计划"区加：
+    - **考试目标日期**：DatePicker（M3 `DatePickerDialog`）
+    - 显示当前距考试天数（"距考试还有 N 天"）
+    - "重置为默认（${当前年}-12-20）"按钮
+  - **首次启动**：未填则用默认值（不强制弹窗，由 Task 2.5 Onboarding 接管引导）
+  - **Done 标准**：
+    - BUILD SUCCESSFUL
+    - 改日期立即影响 SprintModeManager 判定
+    - DatePicker 不允许选过去日期（disable 逻辑）
+
+- [ ] **Task 2.5** 首次启动 Onboarding 引导
+  - 触发条件：`AppPreference.firstLaunchCompletedAt == 0L`
+    （DataStore 加 `firstLaunchCompletedAt: Long` 字段，完成引导后写当前时间戳）
+  - 引导流程（M3 BottomSheet 多步，or 全屏 4 页 HorizontalPager，待实施时定）：
+    1. **欢迎页**：项目简介 + "为考研学子打造的公式记忆 App"
+    2. **设置目标日期**：DatePicker，默认当前年份 12-20，可改可跳过
+    3. **配置识别器**：链接到设置页 Mathpix / SimpleTex 区（可跳过，标注"也可稍后在设置页配置"）
+    4. **复习时间偏好**：TimePicker 默认 08:00，可改可跳过
+    5. **完成**：写入 `firstLaunchCompletedAt`，跳到 Memory Tab
+  - 任意步骤跳过都视为引导完成（不再触发）
+  - 提供"跳过引导"全局按钮（每页右上角）
+  - **设置页加"重置 Onboarding"** 入口（藏在重置区，便于调试）
+  - **Done 标准**：
+    - 全新安装 / clearData 后启动看到引导
+    - 完成或跳过后不再触发
+    - 重启 App 不重复弹（持久化生效）
+
+### 验收标准（全部 Task 完成后）
+
+- `./gradlew.bat compileDebugKotlin` BUILD SUCCESSFUL
+- 单元测试无回归 + 至少新增 6 条 ReviewScheduler 时间截断 case
+- 真机端到端：
+  - Tab 切换流畅无残留（Task 2.1）
+  - 上午 + 下午分别复习的内容次日 08:00 同时进入可复习（Task 2.2/2.3）
+  - 设置页能改刷新时间 + 考试日期，重启后保留（Task 2.3/2.4）
+  - 全新安装看到 Onboarding，完成或跳过后不再触发（Task 2.5）
+- 改进点池中被本 Sprint 消费的条目已移动到"已纳入"分区
+
+---
+
+## Sprint 3+（待从改进点池生成）
+
+> Sprint 2 完成后，扫描 [`../改进点池.md`](../改进点池.md) 的"待评估"分区生成。
 
 ---
 

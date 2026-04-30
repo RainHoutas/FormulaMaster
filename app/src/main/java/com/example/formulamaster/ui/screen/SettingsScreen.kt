@@ -55,8 +55,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
 import com.example.formulamaster.domain.RecognizerType
+import com.example.formulamaster.ui.viewmodel.ExportResult
 import com.example.formulamaster.ui.viewmodel.SettingsViewModel
 import com.example.formulamaster.ui.viewmodel.TestConnectionStatus
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 
 /**
  * Sprint 1 Task 1.7 — 设置页
@@ -83,6 +88,9 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsState()
     val testStatus by viewModel.testStatus.collectAsState()
     val lastCompletionAtMs by viewModel.lastCompletionAtMs.collectAsState()
+    val feedbackCount by viewModel.feedbackCount.collectAsState()
+    val exportResult by viewModel.exportResult.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // 测试连接冷却倒计时：以"最近完成时间戳"为 key，每次新完成触发一轮完整的 5s ticker
     // 关键：状态条 4 秒自动消失（testStatus 变化）不会影响这个 LaunchedEffect，
@@ -106,10 +114,37 @@ fun SettingsScreen(
         viewModel.cooldownSecondsRemaining(RecognizerType.A2_SimpleTex_Standard)
     }
 
+    // Sprint 1 Task 1.9：SAF 导出 JSON Launcher
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) viewModel.exportFeedbackJson(uri)
+    }
+
+    // 监听导出结果，弹 Snackbar
+    LaunchedEffect(exportResult) {
+        when (val r = exportResult) {
+            null -> {}
+            is ExportResult.NoSamples -> {
+                snackbarHostState.showSnackbar("还没有反馈样本")
+                viewModel.clearExportResult()
+            }
+            is ExportResult.Success -> {
+                snackbarHostState.showSnackbar("导出成功（${r.count} 条）")
+                viewModel.clearExportResult()
+            }
+            is ExportResult.Failed -> {
+                snackbarHostState.showSnackbar("导出失败：${r.reason}")
+                viewModel.clearExportResult()
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("设置") })
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -172,10 +207,103 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
+            // Sprint 1 Task 1.9：识别反馈样本管理
+            FeedbackSection(
+                count = feedbackCount,
+                onExport = {
+                    val ts = java.text.SimpleDateFormat(
+                        "yyyyMMdd_HHmmss",
+                        java.util.Locale.getDefault()
+                    ).format(java.util.Date())
+                    exportLauncher.launch("formulamaster_ocr_feedback_$ts.json")
+                },
+                onClear = viewModel::clearFeedback
+            )
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
             ResetSection(onReset = viewModel::clearAll)
 
             Spacer(Modifier.height(32.dp))
         }
+    }
+}
+
+// ── 反馈样本管理区（Sprint 1 Task 1.9） ─────────────────────────────────────
+
+@Composable
+private fun FeedbackSection(
+    count: Int,
+    onExport: () -> Unit,
+    onClear: () -> Unit
+) {
+    var showClearConfirm by remember { mutableStateOf(false) }
+
+    SectionHeader("识别反馈")
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "已收集 $count 条反馈样本",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "在严测页点「都不对」可记录识别失败的笔画 + 候选 + 你写下的正确 LaTeX。" +
+                       "导出 JSON 后可作为未来端侧训练 / 误识别复盘的数据源。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = onExport,
+                    enabled = count > 0,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("导出 JSON")
+                }
+                OutlinedButton(
+                    onClick = { showClearConfirm = true },
+                    enabled = count > 0,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("清空", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("清空反馈样本？") },
+            text = {
+                Text("将删除所有已收集的 $count 条反馈样本。建议先导出 JSON 备份。此操作不可撤销。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClear()
+                        showClearConfirm = false
+                    }
+                ) {
+                    Text("确认清空", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
