@@ -60,6 +60,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.data.AppSettings
+import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.SprintModeManager
 import java.time.Instant
@@ -234,6 +235,17 @@ fun SettingsScreen(
                 appSettings = appSettings,
                 onDateChange = viewModel::setTargetExamDate,
                 onReset = viewModel::resetTargetExamDate
+            )
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
+            // Sprint 3 Task 3.1：输入方式偏好
+            SectionHeader("输入偏好")
+            InputModeSection(
+                current = appSettings.inputMode,
+                onSelect = viewModel::setInputMode
             )
 
             Spacer(Modifier.height(32.dp))
@@ -834,6 +846,80 @@ private fun LearningPlanSection(
                 TextButton(onClick = { showTimePicker = false }) { Text("取消") }
             }
         )
+    }
+}
+
+// ── 输入偏好（Sprint 3 Task 3.1）──────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InputModeSection(
+    current: InputMode,
+    onSelect: (InputMode) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("严测 / 默写时的输入方式", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it }
+            ) {
+                OutlinedTextField(
+                    value = current.displayName,
+                    onValueChange = {},
+                    label = { Text("输入方式") },
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    InputMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(mode.displayName)
+                                    Text(
+                                        mode.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onSelect(mode)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = current.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (current == InputMode.PaperPen) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "提示：进入严测时屏幕会自动切换为横屏，最大化展示公式。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
     }
 }
 

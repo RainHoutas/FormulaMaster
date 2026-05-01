@@ -12,6 +12,7 @@ import com.example.formulamaster.data.RecognizerPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.worker.DailyReminderWorker
+import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
@@ -74,6 +75,11 @@ class SettingsViewModel(
     /** Sprint 2 Task 2.5：重置 Onboarding（写 0L），下次启动会重新弹引导。调试用。 */
     fun resetOnboarding() {
         viewModelScope.launch { appPreference.setFirstLaunchCompletedAt(0L) }
+    }
+
+    /** Sprint 3 Task 3.1：设置输入方式（手写识别 / 纸笔自评）。 */
+    fun setInputMode(mode: InputMode) {
+        viewModelScope.launch { appPreference.setInputMode(mode) }
     }
 
     fun setDailyRefreshTime(hour: Int, minute: Int) {

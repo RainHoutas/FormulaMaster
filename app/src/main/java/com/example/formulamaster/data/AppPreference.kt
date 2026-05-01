@@ -6,7 +6,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.formulamaster.domain.InputMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +37,9 @@ data class AppSettings(
     val dailyRefreshMinuteOfHour: Int = 0,
     val targetExamDate: Long = 0L,
     /** 首次启动引导完成时间戳（Unix ms）。0 表示未完成 → 启动时弹 Onboarding。 */
-    val firstLaunchCompletedAt: Long = 0L
+    val firstLaunchCompletedAt: Long = 0L,
+    /** 严测 / 默写时的输入方式。Sprint 3 Task 3.1 引入。 */
+    val inputMode: InputMode = InputMode.Default
 ) {
     /** 实际生效的考试日期：用户已设过则用持久化值，否则取动态默认（当前年份 12-20）。 */
     val effectiveTargetExamDate: Long
@@ -100,7 +104,8 @@ class AppPreference(
                 dailyRefreshHourOfDay = prefs[KEY_REFRESH_HOUR] ?: 8,
                 dailyRefreshMinuteOfHour = prefs[KEY_REFRESH_MINUTE] ?: 0,
                 targetExamDate = prefs[KEY_TARGET_EXAM_DATE] ?: 0L,
-                firstLaunchCompletedAt = prefs[KEY_FIRST_LAUNCH_COMPLETED_AT] ?: 0L
+                firstLaunchCompletedAt = prefs[KEY_FIRST_LAUNCH_COMPLETED_AT] ?: 0L,
+                inputMode = prefs[KEY_INPUT_MODE]?.toInputModeOrDefault() ?: InputMode.Default
             )
         }
         .onEach { _isLoaded.value = true }
@@ -132,12 +137,25 @@ class AppPreference(
         dataStore.edit { it[KEY_FIRST_LAUNCH_COMPLETED_AT] = timeMs }
     }
 
+    /** Sprint 3 Task 3.1：写入用户的输入方式偏好。 */
+    suspend fun setInputMode(mode: InputMode) {
+        dataStore.edit { it[KEY_INPUT_MODE] = mode.name }
+    }
+
+    /** 解析 DataStore 存储的字符串到枚举；未知值（旧版本字段被删/改名）按默认处理。 */
+    private fun String.toInputModeOrDefault(): InputMode = try {
+        InputMode.valueOf(this)
+    } catch (e: IllegalArgumentException) {
+        InputMode.Default
+    }
+
     companion object {
         private const val DATASTORE_NAME = "app_prefs"
         private val KEY_REFRESH_HOUR              = intPreferencesKey("daily_refresh_hour_of_day")
         private val KEY_REFRESH_MINUTE            = intPreferencesKey("daily_refresh_minute_of_hour")
         private val KEY_TARGET_EXAM_DATE          = longPreferencesKey("target_exam_date")
         private val KEY_FIRST_LAUNCH_COMPLETED_AT = longPreferencesKey("first_launch_completed_at")
+        private val KEY_INPUT_MODE                = stringPreferencesKey("input_mode")
 
         private val Context.appDataStore: DataStore<Preferences>
             by preferencesDataStore(name = DATASTORE_NAME)
