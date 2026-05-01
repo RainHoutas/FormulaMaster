@@ -453,12 +453,118 @@ TOP 5 条目落地：
 
 ---
 
-## Sprint 3+（待从改进点池生成）
+## Sprint 3：输入方式 + 反馈机制重构（2026-05-01 启动）
 
-> Sprint 2 完成后，扫描 [`../改进点池.md`](../改进点池.md) 的"待评估"分区生成。
+### 背景
+
+Sprint 2 收尾后扫描改进点池，按 (优先级 ASC, 时间 ASC) 取 P1 已拍板条目落地：
+
+- **输入方式三选一 → 二选一**（用户 2026-05-01 拍板）：LaTeX 输入法因自研工程量过大、
+  第三方组件不可用而**无限期搁置**（已移入"已拒绝/搁置"分区）。仅保留"手写识别 / 纸笔自评"
+- **OcrFeedback 数据模型重构**（用户 2026-05-01 拍板，新增）：原"手输正确 LaTeX"设计
+  随 LaTeX 输入法搁置失效，改为"公式 token 选错位"——读取当前公式 LaTeX，拆 token
+  让用户多选哪些部件被识别错
+- **Test 移出 NavBar**（待 3 个澄清问题确认后落地）
+
+### 关键决策记录
+
+- **LaTeX 输入法**：无限期搁置，等"质量过硬的开源 Compose LaTeX 输入面板"或"纸笔自评
+  局限暴露明显"才重启
+- **OcrFeedback schema 升级**：加 `formulaLatex`（自动读取）和 `wrongTokensJson`（用户多选），
+  `correctLatex` 改 nullable 兼容旧数据；`AppDatabase` v2 → v3，沿用
+  `fallbackToDestructiveMigration(dropAllTables=true)`（打磨阶段允许）
+- **Sprint 3 收尾后**：进入 P0「学习与复习流程重构」task（用户拍板路线 A 后接续）
+
+### Task 列表
+
+- [ ] **Task 3.1** InputMode 基础设施
+  - 新建 `domain/InputMode` 枚举：`Handwriting`（默认）/ `PaperPen`
+  - `AppPreference.AppSettings` 加 `inputMode: InputMode = Handwriting`
+  - DataStore key + setter `setInputMode(mode)`
+  - `SettingsViewModel` 暴露 + setter；`SettingsScreen` 加"输入偏好"区
+    （ExposedDropdown 二选一 + 描述文案）
+  - **Done 标准**：BUILD SUCCESSFUL；切换后重启保留；现有调用方未读 `inputMode` 不受影响
+
+- [ ] **Task 3.2** 纸笔自评模式 PaperPenInputArea
+  - 新建 `ui/component/PaperPenInputArea.kt`：
+    - 大按钮"已完成默写"
+    - 点击后展开标准答案（MathFormulaView 渲染）+ 自评按钮「完全正确」/「出现错误」
+  - `TestScreen` 按 `appSettings.inputMode` 路由：
+    - `Handwriting` → 现有 TestCanvas 路径
+    - `PaperPen` → `PaperPenInputArea` 路径（不调识别器，不消耗额度）
+  - 自评结果调 `viewModel.submitJudgment(item, isCorrect, costTimeMs)`，与现有路径对齐
+  - **Done 标准**：BUILD SUCCESSFUL；真机切到纸笔模式不再调用识别器（Logcat 验证）；
+    自评后正确进入下一题
+
+- [ ] **Task 3.3** Onboarding 加"输入方式"页
+  - 在欢迎页和考试日期页之间插入新页（位序 1，原 1-4 后移到 2-5；总 6 页）
+  - 描述文案：手写识别（需识别器，体验流畅）/ 纸笔自评（不依赖识别，需自己判断）
+  - 默认勾选"手写识别"
+  - 改 `OnboardingViewModel.completeAndPersist` 增加 `inputMode` 参数
+  - **Done 标准**：BUILD SUCCESSFUL；引导能选输入方式 + 持久化；选纸笔后跳过识别器配置页
+
+- [ ] **Task 3.4** OcrFeedback 数据模型重构 🔥
+  - 数据层：
+    - `OcrFeedbackEntity` 加 `formulaLatex: String?` + `wrongTokensJson: String?` 字段；
+      `correctLatex` 改 nullable
+    - `AppDatabase` v2 → v3，`fallbackToDestructiveMigration(dropAllTables=true)`
+  - LaTeX token 化：
+    - 调研 `ClozeParser` 是否可复用；不行则新建 `domain/LatexTokenizer.kt`
+    - 切分粒度：`\command` / 上下标块 `^{...}` `_{...}` / 大括号块 / 单字符
+    - 单元测试覆盖 6 类典型公式（短表达式 / 上下标 / 分式 / 求和 / 积分 / 嵌套）
+  - UI 层：
+    - `FeedbackDialog` 替换"输入正确 LaTeX"为：
+      - 上半部：笔画预览 + 候选 chip 列表（保留）
+      - 中部：当前公式渲染 (MathFormulaView)
+      - 下半部：FlowRow + FilterChip 显示 token 列表，多选高亮
+      - "标记错误部件"按钮（多选确认后提交）+「都不对」快捷（自动选所有 token）
+    - `TestViewModel.submitOcrFeedback` 接收 `wrongTokens: List<String>` 替代 `correctLatex`
+  - 导出 JSON 格式同步更新（schema 演进）
+  - **Done 标准**：
+    - BUILD SUCCESSFUL；新增 LatexTokenizer 单测全绿
+    - 真机：进入反馈 → 选 token chip → 提交 → 设置页样本数 +1 → 导出 JSON 含新字段
+
+- [ ] **Task 3.5** Test 移出 NavBar
+  - 先确认 3 个待澄清问题（已知 spec 列出）：
+    1. 严测入口图标用什么（Edit / Quiz / Speed / 其他）？
+    2. 入口位置：MemoryScreen TopAppBar action 还是右下 FAB？
+    3. 数据未掌握时入口是否禁用 + 提示？
+  - 实施：
+    - `MainScreen.tabs` 去掉 Test；`topLevelRoutes` 同步移除
+    - `MemoryScreen` 加严测入口（位置 + 图标按用户决定）
+    - 路由从 NavBar item onClick 改为 IconButton onClick
+    - 通知 navTarget 处理（如有指向 Test 的场景重新审视）
+  - **Done 标准**：BUILD SUCCESSFUL；从 Settings/Review Tab 进入 Test 后退出能回原 Tab
+
+### 验收标准（全部 Task 完成后）
+
+- `./gradlew.bat compileDebugKotlin testDebugUnitTest` BUILD SUCCESSFUL
+- 真机端到端：
+  - 设置页可切输入方式，重启保留
+  - 切到纸笔自评后 TestScreen 不调识别器
+  - Onboarding 包含输入方式选择
+  - 反馈 Dialog 用 token 多选替代 LaTeX 输入框
+  - Test 从任一来源 Tab 进入退出回原页
+- 改进点池中被本 Sprint 消费的条目移动到"已完成"分区
 
 ---
 
 ## Sprint 完成记录
 
-（Sprint 完成后在此追加简短总结，方便回溯）
+### Sprint 1 总结（2026-04-24 ~ 2026-04-29）
+
+完成手写识别真实落地：A1 Mathpix + A2 SimpleTex（Standard + Turbo）双 API 路线；
+ML Kit Digital Ink 因不支持数学公式而拒绝；新建识别器注册表 + 用户偏好（DataStore + Tink 加密）；
+SettingsScreen 三大区块（识别器配置 / 档位绑定 / 反馈管理）；TestCanvas 接入双档识别 +
+友好降级 Snackbar；OcrFeedback 收集机制（落库 + SAF 导出）。LaTeX 规范化后处理器 +
+公式渲染管线重构（KaTeX HTML 模板 + WebViewPool）。
+
+### Sprint 2 总结（2026-04-29 ~ 2026-05-01）
+
+完成性能修复 + 时间设置体系：诊断驱动定位 7 处切换卡顿根因并修复；引入 `AppPreference`
+（DataStore + isLoaded 信号）持久化 `dailyRefreshHour/Minute`、`targetExamDate`、
+`firstLaunchCompletedAt`；`ReviewScheduler` 新增 `truncateToRefreshHour` /
+`adjustToRefreshHour`（DST 安全）+ 13/13 单测覆盖三时区 + DST 边界；
+`SprintModeManager` 改参数注入；设置页加"学习计划"区（TimePicker / DatePicker）；
+默认考试日期改"12 月倒数第二个周六"动态计算；OnboardingScreen 5 页全屏 HorizontalPager
+完整引导。修复多处时间逻辑漏洞（首次激活 / 切换刷新时刻批量重写库存 / 通知时间同步）。
