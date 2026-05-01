@@ -6,12 +6,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.AppPreference
+import com.example.formulamaster.data.AppSettings
 import com.example.formulamaster.data.RecognizerPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
+import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.worker.DailyReminderWorker
 import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
 import com.example.formulamaster.domain.RecognizerType
+import com.example.formulamaster.domain.ReviewScheduler
+import java.time.ZoneId
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +40,9 @@ import kotlinx.coroutines.withContext
  */
 class SettingsViewModel(
     private val preference: RecognizerPreference,
+    private val appPreference: AppPreference,
     private val ocrFeedbackDao: OcrFeedbackDao,
+    private val studyStateDao: StudyStateDao,
     private val appContext: Context
 ) : ViewModel() {
 
@@ -46,6 +54,48 @@ class SettingsViewModel(
      * 重新订阅 cold dataStore.data → 重做 DataStore 读盘 + Tink 解密，造成"每次进设置页加载一小下"。
      */
     val settings: StateFlow<RecognizerSettings> = preference.settings
+
+    /** 应用全局偏好（刷新时刻等），DataStore 写入后立即 emit。 */
+    val appSettings: StateFlow<AppSettings> = appPreference.settings
+
+    /**
+     * Sprint 2 Task 2.4：设置考试目标日期。
+     * 传入的 [dateMs] 应为本地时区目标日的 00:00（UI 层负责转换）。
+     */
+    fun setTargetExamDate(dateMs: Long) {
+        viewModelScope.launch { appPreference.setTargetExamDate(dateMs) }
+    }
+
+    /** Sprint 2 Task 2.4：重置考试目标日期为默认值（写入 0L → 读取时取动态默认）。 */
+    fun resetTargetExamDate() {
+        viewModelScope.launch { appPreference.setTargetExamDate(0L) }
+    }
+
+    /** Sprint 2 Task 2.5：重置 Onboarding（写 0L），下次启动会重新弹引导。调试用。 */
+    fun resetOnboarding() {
+        viewModelScope.launch { appPreference.setFirstLaunchCompletedAt(0L) }
+    }
+
+    fun setDailyRefreshTime(hour: Int, minute: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            appPreference.setDailyRefreshTime(hour, minute)
+            // Sprint 2 Task 2.3：切换刷新时刻时，把库内既有 nextReviewTime 重新截断到新整点
+            // 仅改时分秒，保留原日期（与用户期望"天数不变，只用该当日复习时间"一致）
+            val zone = ZoneId.systemDefault()
+            val states = studyStateDao.getAllStatesOnce()
+            states.forEach { state ->
+                if (state.nextReviewTime <= 0L) return@forEach
+                val newTime = ReviewScheduler.truncateToRefreshHour(
+                    state.nextReviewTime, hour, minute, zone
+                )
+                if (newTime != state.nextReviewTime) {
+                    studyStateDao.setNextReviewTime(state.formulaId, newTime)
+                }
+            }
+            // 同步重排每日复习提醒到新刷新时刻（UPDATE 策略，幂等）
+            DailyReminderWorker.schedule(appContext, hour, minute)
+        }
+    }
 
     private val _testStatus = MutableStateFlow<Map<RecognizerType, TestConnectionStatus>>(emptyMap())
     val testStatus: StateFlow<Map<RecognizerType, TestConnectionStatus>> = _testStatus.asStateFlow()
@@ -222,9 +272,12 @@ class SettingsViewModel(
                 val app = context.applicationContext
                 // Sprint 2 Task 2.1 修复 D：从 AppContainer 取单例，
                 // 替代之前每次 `RecognizerPreference(app)` 新建实例的做法
+                val db = AppContainer.appDatabase(app)
                 return SettingsViewModel(
                     preference = AppContainer.recognizerPreference(app),
-                    ocrFeedbackDao = AppContainer.appDatabase(app).ocrFeedbackDao(),
+                    appPreference = AppContainer.appPreference(app),
+                    ocrFeedbackDao = db.ocrFeedbackDao(),
+                    studyStateDao = db.studyStateDao(),
                     appContext = app
                 ) as T
             }

@@ -61,4 +61,11 @@ interface StudyStateDao {
      */
     @Query("UPDATE study_states SET nextReviewTime = :nextReviewTime WHERE formulaId = :id")
     suspend fun setNextReviewTime(id: String, nextReviewTime: Long)
+
+    /**
+     * Sprint 2 Task 2.3：一次性快照所有 study_states，供"切换刷新整点时批量重写"使用。
+     * 与 [getAllStates] 不同，本方法是 suspend 一次性读取，不返回 Flow。
+     */
+    @Query("SELECT * FROM study_states")
+    suspend fun getAllStatesOnce(): List<StudyStateEntity>
 }

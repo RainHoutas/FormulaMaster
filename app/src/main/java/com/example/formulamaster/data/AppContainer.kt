@@ -42,6 +42,7 @@ object AppContainer {
 
     @Volatile private var recognizerPreference: RecognizerPreference? = null
     @Volatile private var appDatabase: AppDatabase? = null
+    @Volatile private var appPreference: AppPreference? = null
 
     /**
      * 应用级 CoroutineScope。
@@ -77,6 +78,18 @@ object AppContainer {
         return appDatabase ?: synchronized(this) {
             appDatabase ?: AppDatabase.getInstance(context.applicationContext)
                 .also { appDatabase = it }
+        }
+    }
+
+    /**
+     * 取应用全局偏好单例（刷新时刻、目标考试日期等非敏感配置）。
+     */
+    fun appPreference(context: Context): AppPreference {
+        return appPreference ?: synchronized(this) {
+            appPreference ?: AppPreference(
+                context.applicationContext,
+                applicationScope
+            ).also { appPreference = it }
         }
     }
 }

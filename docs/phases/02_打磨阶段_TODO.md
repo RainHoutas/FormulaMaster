@@ -369,27 +369,27 @@ TOP 5 条目落地：
     - 重写：`ui/component/MathFormulaView.kt`、`ui/component/WebViewPool.kt`
     - 修改：`ui/screen/MainScreen.kt`、`ui/screen/TestScreen.kt`、`ui/viewmodel/SettingsViewModel.kt`、`ui/viewmodel/TestViewModel.kt`、`data/RecognizerPreference.kt`、`MainActivity.kt`
 
-- [ ] **Task 2.2** ReviewScheduler 复习时间截断到当日刷新时刻 🔥
+- [x] **Task 2.2** ReviewScheduler 复习时间截断到当日刷新时刻 ✅ 2026-04-30
   - 算法层重构：
     - `domain/ReviewScheduler.kt` 的 `calculate()` 返回的 `nextReviewTime` 截断到
-      "目标日 08:00（本地时区）"，而非毫秒精度
-    - 新增工具函数 `truncateToRefreshHour(timeMs: Long, hourOfDay: Int, zoneId: ZoneId): Long`
-    - 算法接收 `hourOfDay` 参数（默认 8），方便单测覆盖
-  - 数据查询层调整：
-    - `data/local/dao/StudyStateDao.kt` 中 `getDueFormulas` 的 "due" 判断不变（nextReviewTime ≤ now），
-      但因为 nextReviewTime 已经截断到刷新点，效果是"过当日 08:00 才进入可复习"
-    - 单天内多次完成的复习在第二天 08:00 同时变可复习（消除割裂）
-  - 逾期判断：超过当日 24:00 仍未复习 → 算"逾期"，下次 calculate 的 elapsed 天数从 nextReviewTime 算起
-  - **单元测试**：
-    - `ReviewSchedulerTest` 补充用例：
-      - 同一天内多次复习的 nextReviewTime 应落到同一个刷新时刻
-      - 不同时区下截断结果正确（UTC / Asia/Shanghai / America/Los_Angeles）
-      - 跨 DST 边界（北半球 3 月切换日）截断不抖动
+      "目标日 hourOfDay:00（本地时区）"，而非毫秒精度
+    - 新增内部工具函数 `truncateToRefreshHour(timeMs, hourOfDay, zoneId)` (`internal`)
+    - `calculate()` 新增 `hourOfDay: Int = 8` 和 `zoneId: ZoneId = ZoneId.systemDefault()` 参数，
+      既有调用（TestViewModel / ReviewViewModel）无需修改（默认值兼容）
+    - 截断逻辑：rawNextReviewTime → 截断到同日刷新整点；若刷新整点已过（极短稳定性场景），
+      用 `ZonedDateTime.plusDays(1)` DST 安全顺延到次日同一整点
+  - 数据查询层：`StudyStateDao.getDueFormulas` 判断不变（nextReviewTime ≤ now），
+    效果是"过当日 hourOfDay:00 才进入可复习"，消除同日多次复习的时间割裂
   - **Done 标准**：
-    - BUILD SUCCESSFUL；单元测试新增 ≥6 条且全部通过
-    - 既有 `ReviewSchedulerTest` 6 条不回归
+    - ✅ BUILD SUCCESSFUL
+    - ✅ 单元测试：原 6 条不回归 + 新增 7 条（共 13/13），覆盖：
+      - 同日 09:00 / 15:00 复习 → nextReviewTime 相同
+      - `truncateToRefreshHour` 在 UTC / Asia/Shanghai / America/Los_Angeles 三时区截断正确
+      - 美国 2024-03-10 DST 春令时切换日截断不抖动
+      - 极短稳定性（S=0.2）+ 刷新整点已过 → 顺延到次日 08:00
+      - `hourOfDay=20` 端到端截断落点正确
 
-- [ ] **Task 2.3** 时区 + 复习刷新时间用户设置 UI
+- [x] **Task 2.3** 时区 + 复习刷新时间用户设置 UI ✅ 2026-04-30
   - 新建 `data/AppPreference.kt`（DataStore Preferences-backed）：
     - `dailyRefreshHourOfDay: Int`（默认 8）
     - `targetExamDate: Long`（默认值由 Task 2.4 落实，本 Task 占位）
@@ -405,7 +405,7 @@ TOP 5 条目落地：
     - 设置页能改刷新时间，重启 App 后保留（DataStore 验证）
     - 改后立即生效（DataStore Flow → ViewModel 重新订阅 → 下一次 calculate 用新值）
 
-- [ ] **Task 2.4** 冲刺目标日期用户自设置
+- [x] **Task 2.4** 冲刺目标日期用户自设置 ✅ 2026-05-01
   - `data/AppPreference.kt` 加 `targetExamDate: Long`：
     - 默认值动态计算："当前年份 12 月 20 日 00:00（本地时区）"
     - 用户已设过 → 持久化值；未设过 → 默认值
@@ -423,7 +423,7 @@ TOP 5 条目落地：
     - 改日期立即影响 SprintModeManager 判定
     - DatePicker 不允许选过去日期（disable 逻辑）
 
-- [ ] **Task 2.5** 首次启动 Onboarding 引导
+- [x] **Task 2.5** 首次启动 Onboarding 引导 ✅ 2026-05-01
   - 触发条件：`AppPreference.firstLaunchCompletedAt == 0L`
     （DataStore 加 `firstLaunchCompletedAt: Long` 字段，完成引导后写当前时间戳）
   - 引导流程（M3 BottomSheet 多步，or 全屏 4 页 HorizontalPager，待实施时定）：

@@ -107,11 +107,17 @@ class DailyReminderWorker(
         private const val REQUEST_CODE = 0
 
         /**
-         * 在 MainActivity 中调用一次。
-         * 以 [ExistingPeriodicWorkPolicy.KEEP] 保证不重复调度（不重置计时）。
+         * 在 MainActivity 冷启动时 / SettingsViewModel 切换刷新整点时调用。
+         *
+         * 用 [ExistingPeriodicWorkPolicy.UPDATE]：
+         * - 首次调度：等同 KEEP，按 [hourOfDay] 计算 initialDelay
+         * - 用户改 hourOfDay 后再次调用：替换既有任务，按新 hour 重排时间
          */
-        fun schedule(context: Context) {
-            val initialDelay = delayToNextEightAM()
+        fun schedule(context: Context, hourOfDay: Int = 8, minute: Int = 0) {
+            val initialDelay = delayToNextTime(
+                hourOfDay.coerceIn(0, 23),
+                minute.coerceIn(0, 59)
+            )
 
             val request = PeriodicWorkRequestBuilder<DailyReminderWorker>(1, TimeUnit.DAYS)
                 .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
@@ -119,15 +125,15 @@ class DailyReminderWorker(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
         }
 
-        /** 距下一个 08:00:00 的毫秒数。若当前时间已过今天 8 点，则目标为明天 8 点。 */
-        private fun delayToNextEightAM(): Long {
+        /** 距下一个 [hourOfDay]:[minute]:00 的毫秒数。若已过则取明天同一时刻。 */
+        private fun delayToNextTime(hourOfDay: Int, minute: Int): Long {
             val now = LocalDateTime.now()
-            val targetToday = now.toLocalDate().atTime(8, 0)
+            val targetToday = now.toLocalDate().atTime(hourOfDay, minute)
             val target = if (targetToday.isAfter(now)) targetToday else targetToday.plusDays(1)
             val zone = ZoneId.systemDefault()
             return Duration.between(

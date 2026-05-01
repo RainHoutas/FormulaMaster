@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.local.AppDatabase
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.ReviewScheduler
+import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,11 +55,24 @@ data class HeatmapState(
 class ReviewViewModel(
     private val repository: FormulaRepository,
     private val studyStateDao: StudyStateDao,
-    private val reviewLogDao: ReviewLogDao
+    private val reviewLogDao: ReviewLogDao,
+    private val appPreference: AppPreference
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
+
+    /**
+     * Sprint 2 Task 2.4：是否处于考前冲刺期。
+     * 跟随 [AppPreference.settings] 变化（用户改考试日期立即重算）。
+     */
+    val isSprintActive: StateFlow<Boolean> = appPreference.settings
+        .map { SprintModeManager.isActive(it.effectiveTargetExamDate) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = false
+        )
 
     // 会话开始时间：队列以此为截止基准
     private val sessionStartMs = System.currentTimeMillis()
@@ -120,11 +136,14 @@ class ReviewViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             // 1. FSRS 调度计算（基础稳定性 / 难度 / Mastered 判定）
+            val appSettings = appPreference.settings.value
             val result = ReviewScheduler.calculate(
                 current       = studyState,
                 rating        = rating,
                 isTestMode    = false,
-                currentTimeMs = nowMs
+                currentTimeMs = nowMs,
+                hourOfDay     = appSettings.dailyRefreshHourOfDay,
+                minute        = appSettings.dailyRefreshMinuteOfHour
             )
 
             // 2. Task 4.6：状态机迁移检查（在 Scheduler 结果基础上叠加）
@@ -197,11 +216,13 @@ class ReviewViewModel(
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val db = AppDatabase.getInstance(context.applicationContext)
+                val app = context.applicationContext
+                val db = AppContainer.appDatabase(app)
                 return ReviewViewModel(
-                    FormulaRepository(context.applicationContext, db.formulaDao()),
+                    FormulaRepository(app, db.formulaDao()),
                     db.studyStateDao(),
-                    db.reviewLogDao()
+                    db.reviewLogDao(),
+                    AppContainer.appPreference(app)
                 ) as T
             }
         }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
@@ -13,7 +14,11 @@ import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.ReviewScheduler
+import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.domain.model.FormulaWithState
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,11 +60,24 @@ class TestViewModel(
     private val repository: FormulaRepository,
     private val studyStateDao: StudyStateDao,
     private val reviewLogDao: ReviewLogDao,
-    private val ocrFeedbackDao: OcrFeedbackDao
+    private val ocrFeedbackDao: OcrFeedbackDao,
+    private val appPreference: AppPreference
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TestUiState())
     val uiState: StateFlow<TestUiState> = _uiState.asStateFlow()
+
+    /**
+     * Sprint 2 Task 2.4：是否处于考前冲刺期。
+     * 跟随 [AppPreference.settings] 变化（用户改考试日期立即重算）。
+     */
+    val isSprintActive: StateFlow<Boolean> = appPreference.settings
+        .map { SprintModeManager.isActive(it.effectiveTargetExamDate) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = false
+        )
 
     // 会话队列快照：首次加载后冻结
     private var sessionItems: List<FormulaWithState>? = null
@@ -121,11 +139,14 @@ class TestViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             // 1. FSRS 调度（测试模式）
+            val appSettings = appPreference.settings.value
             val result = ReviewScheduler.calculate(
                 current       = studyState,
                 rating        = rating,
                 isTestMode    = true,
-                currentTimeMs = nowMs
+                currentTimeMs = nowMs,
+                hourOfDay     = appSettings.dailyRefreshHourOfDay,
+                minute        = appSettings.dailyRefreshMinuteOfHour
             )
 
             // 2. 连续好评计数：出错强制降级时清零，正确时保留
@@ -211,12 +232,14 @@ class TestViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 // Sprint 2 Task 2.1 修复 D：从 AppContainer 取数据库单例
-                val db = AppContainer.appDatabase(context.applicationContext)
+                val app = context.applicationContext
+                val db = AppContainer.appDatabase(app)
                 return TestViewModel(
-                    FormulaRepository(context.applicationContext, db.formulaDao()),
+                    FormulaRepository(app, db.formulaDao()),
                     db.studyStateDao(),
                     db.reviewLogDao(),
-                    db.ocrFeedbackDao()
+                    db.ocrFeedbackDao(),
+                    AppContainer.appPreference(app)
                 ) as T
             }
         }

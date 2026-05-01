@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.formulamaster.data.local.AppDatabase
+import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.entity.StudyStateEntity
 import com.example.formulamaster.data.repository.FormulaRepository
+import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +30,8 @@ data class MemoryUiState(
 
 class MemoryViewModel(
     private val repository: FormulaRepository,
-    private val studyStateDao: StudyStateDao
+    private val studyStateDao: StudyStateDao,
+    private val appPreference: AppPreference
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MemoryUiState())
@@ -57,14 +60,23 @@ class MemoryViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             if (studyStateDao.getByFormulaId(formulaId) != null) return@launch
             val formula = repository.getById(formulaId) ?: return@launch
+            val nowMs = System.currentTimeMillis()
+            // Sprint 2 Task 2.3：首次激活也截断到当日刷新整点（修复绕过 ReviewScheduler 的 bug）
+            val appSettings = appPreference.settings.value
+            val nextTime = ReviewScheduler.adjustToRefreshHour(
+                rawTimeMs = nowMs + DAY_MS,
+                currentTimeMs = nowMs,
+                hourOfDay = appSettings.dailyRefreshHourOfDay,
+                minute = appSettings.dailyRefreshMinuteOfHour
+            )
             studyStateDao.insert(
                 StudyStateEntity(
                     formulaId = formulaId,
                     learningState = 1,
                     difficulty = formula.difficultyLevel.toDouble().coerceIn(1.0, 5.0),
                     stability = 1.0,
-                    lastReviewTime = System.currentTimeMillis(),
-                    nextReviewTime = System.currentTimeMillis() + DAY_MS,
+                    lastReviewTime = nowMs,
+                    nextReviewTime = nextTime,
                     lapses = 0,
                     totalReviews = 0,
                     consecutiveGoodReviews = 0
@@ -79,10 +91,12 @@ class MemoryViewModel(
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val db = AppDatabase.getInstance(context.applicationContext)
+                val app = context.applicationContext
+                val db = AppContainer.appDatabase(app)
                 return MemoryViewModel(
-                    FormulaRepository(context.applicationContext, db.formulaDao()),
-                    db.studyStateDao()
+                    FormulaRepository(app, db.formulaDao()),
+                    db.studyStateDao(),
+                    AppContainer.appPreference(app)
                 ) as T
             }
         }

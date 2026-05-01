@@ -34,7 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.ui.component.HeatmapCalendar
 import com.example.formulamaster.ui.component.ReviewCard
 import com.example.formulamaster.ui.component.SprintSkipDialog
@@ -52,6 +51,7 @@ fun ReviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val heatmap by viewModel.heatmap.collectAsState()
+    val isSprintActive by viewModel.isSprintActive.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -130,7 +130,7 @@ fun ReviewScreen(
                             // Task 5.4：Leech 再次遗忘 → 强化振动 + 冲刺期弹窗
                             if (rating == 1 && item.lapses >= 4) {
                                 vibrateError(context, durationMs = 400L)
-                                if (SprintModeManager.isActive()) {
+                                if (isSprintActive) {
                                     pendingLeechSkipId = item.formula.formulaId
                                 }
                             }

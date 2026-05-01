@@ -9,12 +9,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.formulamaster.data.AppContainer
@@ -23,6 +30,7 @@ import com.example.formulamaster.data.worker.DailyReminderWorker
 import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.ui.component.WebViewPool
 import com.example.formulamaster.ui.screen.MainScreen
+import com.example.formulamaster.ui.screen.OnboardingScreen
 import com.example.formulamaster.ui.theme.FormulaMasterTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -52,7 +60,13 @@ class MainActivity : ComponentActivity() {
             // 1. 首次启动：预加载公式数据
             repository.seedIfEmpty()
             // 2. 检查是否进入考前冲刺模式（满足条件才写库）
-            SprintModeManager.applyIfNeeded(db.studyStateDao())
+            //    Sprint 2 Task 2.4：考试日期改读 AppPreference（用户可在设置页修改）
+            val target = try {
+                AppContainer.appPreference(applicationContext).settings.first().effectiveTargetExamDate
+            } catch (_: Exception) {
+                com.example.formulamaster.data.AppSettings.defaultTargetExamDate()
+            }
+            SprintModeManager.applyIfNeeded(db.studyStateDao(), target)
         }
 
         // Sprint 2 Task 2.1 后台冷启动预热：把"首次进 Tab 才付钱"的开销前置到 App 启动时
@@ -68,13 +82,18 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
                 // 预热失败不影响主流程；真实使用路径有自己的错误兜底
             }
+            // Sprint 2 Task 2.3：同步预热 AppPreference（每日刷新时刻 DataStore 读盘）
+            val (hourOfDay, minute) = try {
+                val s = AppContainer.appPreference(applicationContext).settings.first()
+                s.dailyRefreshHourOfDay to s.dailyRefreshMinuteOfHour
+            } catch (_: Exception) { 8 to 0 }
+            // Task 6.1-b：调度每日复习提醒，按用户配置的刷新时刻（默认 08:00）
+            // UPDATE 策略：重启时按最新时刻调整，幂等
+            DailyReminderWorker.schedule(applicationContext, hourOfDay, minute)
         }
 
         // Task 6.1-a：请求通知权限（Android 13+）
         requestNotificationPermissionIfNeeded()
-
-        // Task 6.1-b：调度每日 8:00 提醒（KEEP 策略，幂等）
-        DailyReminderWorker.schedule(applicationContext)
 
         // Task 6.2：预热 WebView 复用池（容量 3）
         // Sprint 2 Task 2.1 调整：从 1 提升到 2 —— 详情页同时挂载 2 个 MathFormulaView，
@@ -87,8 +106,41 @@ class MainActivity : ComponentActivity() {
         setContent {
             FormulaMasterTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(navTarget = navTarget)
+                    AppRoot(navTarget = navTarget)
                 }
+            }
+        }
+    }
+
+    /**
+     * Sprint 2 Task 2.5：引导/主屏网关。
+     *
+     * - 等 [com.example.formulamaster.data.AppPreference.isLoaded] 为 true 才决策（避免初始默认 0L 误判）
+     * - `firstLaunchCompletedAt == 0L` → 弹 [OnboardingScreen]，完成后切到 [MainScreen]
+     * - 否则直接挂 [MainScreen]
+     */
+    @Composable
+    private fun AppRoot(navTarget: String?) {
+        val context = LocalContext.current
+        val pref = remember(context) { AppContainer.appPreference(context) }
+        val isLoaded by pref.isLoaded.collectAsState()
+        val settings by pref.settings.collectAsState()
+
+        // 内存态：完成 onCompleted 后立即切屏，不等 DataStore Flow 回灌（避免 1-2 帧空白）
+        var onboardingCompleted by remember { mutableStateOf(false) }
+
+        when {
+            !isLoaded -> {
+                // 极短的 splash（DataStore 第一次读盘 ≈ 几十 ms）
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+            !onboardingCompleted && !settings.hasCompletedOnboarding -> {
+                OnboardingScreen(onCompleted = { onboardingCompleted = true })
+            }
+            else -> {
+                MainScreen(navTarget = navTarget)
             }
         }
     }

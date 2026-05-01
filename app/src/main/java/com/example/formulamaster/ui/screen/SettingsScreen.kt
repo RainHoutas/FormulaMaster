@@ -18,6 +18,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerState
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -52,12 +59,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.formulamaster.data.AppSettings
 import com.example.formulamaster.domain.RecognizerRegistry
+import com.example.formulamaster.domain.SprintModeManager
+import java.time.Instant
+import java.time.LocalDate
 import com.example.formulamaster.domain.RecognizerSettings
 import com.example.formulamaster.domain.RecognizerType
 import com.example.formulamaster.ui.viewmodel.ExportResult
 import com.example.formulamaster.ui.viewmodel.SettingsViewModel
 import com.example.formulamaster.ui.viewmodel.TestConnectionStatus
+import java.time.ZoneId
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHost
@@ -86,6 +98,7 @@ fun SettingsScreen(
     )
 ) {
     val settings by viewModel.settings.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
     val testStatus by viewModel.testStatus.collectAsState()
     val lastCompletionAtMs by viewModel.lastCompletionAtMs.collectAsState()
     val feedbackCount by viewModel.feedbackCount.collectAsState()
@@ -207,6 +220,26 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
+            // Sprint 2 Task 2.3：每日刷新时间 + 时区显示
+            SectionHeader("学习计划")
+            LearningPlanSection(
+                appSettings = appSettings,
+                onTimeChange = viewModel::setDailyRefreshTime
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Sprint 2 Task 2.4：考试目标日期
+            ExamDateSection(
+                appSettings = appSettings,
+                onDateChange = viewModel::setTargetExamDate,
+                onReset = viewModel::resetTargetExamDate
+            )
+
+            Spacer(Modifier.height(32.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
             // Sprint 1 Task 1.9：识别反馈样本管理
             FeedbackSection(
                 count = feedbackCount,
@@ -224,7 +257,10 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
-            ResetSection(onReset = viewModel::clearAll)
+            ResetSection(
+                onReset = viewModel::clearAll,
+                onResetOnboarding = viewModel::resetOnboarding
+            )
 
             Spacer(Modifier.height(32.dp))
         }
@@ -641,14 +677,28 @@ private fun BindingDropdown(
 // ── 重置区 ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ResetSection(onReset: () -> Unit) {
+private fun ResetSection(
+    onReset: () -> Unit,
+    onResetOnboarding: () -> Unit
+) {
     var showConfirm by remember { mutableStateOf(false) }
+    var showOnboardingConfirm by remember { mutableStateOf(false) }
 
     OutlinedButton(
         onClick = { showConfirm = true },
         modifier = Modifier.fillMaxWidth()
     ) {
         Text("重置所有配置", color = MaterialTheme.colorScheme.error)
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    // Sprint 2 Task 2.5：调试入口 — 重置 Onboarding，下次启动重弹引导
+    OutlinedButton(
+        onClick = { showOnboardingConfirm = true },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("重置首次启动引导（调试）")
     }
 
     if (showConfirm) {
@@ -674,6 +724,227 @@ private fun ResetSection(onReset: () -> Unit) {
                 }
             }
         )
+    }
+
+    if (showOnboardingConfirm) {
+        AlertDialog(
+            onDismissRequest = { showOnboardingConfirm = false },
+            title = { Text("重置首次启动引导？") },
+            text = {
+                Text("下次启动 App 会重新弹出 Onboarding 引导。仅供调试，不影响其他配置。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onResetOnboarding()
+                        showOnboardingConfirm = false
+                    }
+                ) { Text("确认重置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOnboardingConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
+
+// ── 学习计划区（Sprint 2 Task 2.3）────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LearningPlanSection(
+    appSettings: AppSettings,
+    onTimeChange: (hour: Int, minute: Int) -> Unit
+) {
+    var showTimePicker by remember { mutableStateOf(false) }
+    // 每次"打开"对话框时重置 picker 初始值
+    var pickerGeneration by remember { mutableIntStateOf(0) }
+    val timePickerState = remember(pickerGeneration) {
+        TimePickerState(
+            initialHour = appSettings.dailyRefreshHourOfDay,
+            initialMinute = appSettings.dailyRefreshMinuteOfHour,
+            is24Hour = true
+        )
+    }
+
+    val displayTime = "%02d:%02d".format(
+        appSettings.dailyRefreshHourOfDay,
+        appSettings.dailyRefreshMinuteOfHour
+    )
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("复习刷新时间", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "每天 $displayTime 起开始计算今日复习",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "当前时区：${ZoneId.systemDefault()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(
+                onClick = {
+                    pickerGeneration++   // 重置 picker 到当前已保存值
+                    showTimePicker = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("修改刷新时间")
+            }
+        }
+    }
+
+    if (showTimePicker) {
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("设置每日刷新时间") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TimePicker(state = timePickerState)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "每天到达此时刻起，昨日或之前的复习内容将进入今日复习队列。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTimeChange(timePickerState.hour, timePickerState.minute)
+                        showTimePicker = false
+                    }
+                ) { Text("确认") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
+// ── 考试目标日期（Sprint 2 Task 2.4）──────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExamDateSection(
+    appSettings: AppSettings,
+    onDateChange: (Long) -> Unit,
+    onReset: () -> Unit
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    val zone = remember { ZoneId.systemDefault() }
+
+    val effectiveDate = appSettings.effectiveTargetExamDate
+    val examLocalDate = remember(effectiveDate) {
+        Instant.ofEpochMilli(effectiveDate).atZone(zone).toLocalDate()
+    }
+    val remainingDays = remember(effectiveDate) {
+        SprintModeManager.remainingDays(effectiveDate)
+    }
+    val defaultDate = remember(appSettings) {
+        Instant.ofEpochMilli(AppSettings.defaultTargetExamDate(zone)).atZone(zone).toLocalDate()
+    }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("考试目标日期", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "$examLocalDate" +
+                    if (!appSettings.hasUserSetExamDate) "（默认）" else "",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = when {
+                    remainingDays < 0 -> "已过去 ${-remainingDays} 天"
+                    remainingDays == 0L -> "今天就是考试日"
+                    else -> "距考试还有 $remainingDays 天"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (remainingDays in 0..30) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("修改日期")
+                }
+                OutlinedButton(
+                    onClick = onReset,
+                    enabled = appSettings.hasUserSetExamDate,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("重置为 $defaultDate")
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        // 计算今日 00:00 UTC，作为可选下界（DatePicker 用 UTC 时间戳判断）
+        val todayUtcStart = remember {
+            LocalDate.now(zone).atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        }
+        val initialUtcMs = remember(effectiveDate) {
+            // 把"本地日期"转换为 UTC midnight 表示，给 DatePicker 用（DatePicker 全部用 UTC）
+            examLocalDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialUtcMs,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis >= todayUtcStart
+                override fun isSelectableYear(year: Int): Boolean =
+                    year >= LocalDate.now(zone).year
+            }
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val utcMs = datePickerState.selectedDateMillis
+                    if (utcMs != null) {
+                        // DatePicker 返回的是 UTC midnight；把 UTC 日期还原成本地时区当日 00:00
+                        val pickedLocal = Instant.ofEpochMilli(utcMs)
+                            .atZone(ZoneId.of("UTC")).toLocalDate()
+                        val localMidnight = pickedLocal.atStartOfDay(zone).toInstant().toEpochMilli()
+                        onDateChange(localMidnight)
+                    }
+                    showDatePicker = false
+                }) { Text("确认") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }
 

@@ -1,6 +1,5 @@
 package com.example.formulamaster.domain
 
-import com.example.formulamaster.data.AppConfig
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,7 +7,7 @@ import kotlinx.coroutines.withContext
 /**
  * 考前冲刺模式管理器（Sprint Mode）。
  *
- * 触发条件：距 [AppConfig.targetExamDate] 剩余天数 ≤ 30。
+ * 触发条件：距 `targetExamDate` 剩余天数 ≤ 30。
  *
  * 触发效果：
  *   1. 所有 stability > [STABILITY_THRESHOLD] 的记录 stability 减半
@@ -20,6 +19,9 @@ import kotlinx.coroutines.withContext
  *   - halveStabilityAbove 自带幂等保护：stability 一旦降至 ≤ 15，
  *     后续调用不再影响该记录，只有新复习使 stability 重新超过 15 才会再次触发。
  *   - resetMasteredReviewTime 是冲刺期间有意为之的强制行为（每次启动均生效）。
+ *
+ * Sprint 2 Task 2.4：[targetExamDate] 改为参数注入（不再读全局 AppConfig），
+ * 调用方从 `AppPreference.settings.value.effectiveTargetExamDate` 取值。
  */
 object SprintModeManager {
 
@@ -31,13 +33,15 @@ object SprintModeManager {
      * 在 App 启动时调用。满足冲刺条件则执行批量更新，否则立即返回。
      *
      * @param studyStateDao Room DAO，由调用方注入（避免直接持有 Context）
+     * @param targetExamDate 目标考试日期（Unix ms）
      * @param currentTimeMs 当前时间戳（便于单元测试注入）
      */
     suspend fun applyIfNeeded(
         studyStateDao: StudyStateDao,
+        targetExamDate: Long,
         currentTimeMs: Long = System.currentTimeMillis()
     ) = withContext(Dispatchers.IO) {
-        val remainingDays = (AppConfig.targetExamDate - currentTimeMs) / DAY_MS
+        val remainingDays = (targetExamDate - currentTimeMs) / DAY_MS
         if (remainingDays > SPRINT_THRESHOLD_DAYS) return@withContext
 
         // 批量写库（Room 单次 UPDATE，性能 O(N)）
@@ -46,8 +50,17 @@ object SprintModeManager {
     }
 
     /** 当前是否处于冲刺期（供 UI 展示警告横幅使用） */
-    fun isActive(currentTimeMs: Long = System.currentTimeMillis()): Boolean {
-        val remainingDays = (AppConfig.targetExamDate - currentTimeMs) / DAY_MS
+    fun isActive(
+        targetExamDate: Long,
+        currentTimeMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val remainingDays = (targetExamDate - currentTimeMs) / DAY_MS
         return remainingDays in 0..SPRINT_THRESHOLD_DAYS
     }
+
+    /** 距考试天数（向下取整，已过期返回负数）。 */
+    fun remainingDays(
+        targetExamDate: Long,
+        currentTimeMs: Long = System.currentTimeMillis()
+    ): Long = (targetExamDate - currentTimeMs) / DAY_MS
 }

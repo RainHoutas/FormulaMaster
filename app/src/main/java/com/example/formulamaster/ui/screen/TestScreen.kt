@@ -60,7 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.domain.RecognizerType
 import com.example.formulamaster.domain.model.FormulaWithState
 import com.example.formulamaster.ui.component.FeedbackDialog
@@ -98,6 +97,7 @@ fun TestScreen(
     viewModel: TestViewModel = viewModel(factory = TestViewModel.factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSprintActive by viewModel.isSprintActive.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -223,7 +223,7 @@ fun TestScreen(
                                 vibrateError(context, durationMs = if (isLeech) 400L else 200L)
                                 flashError = true
                                 viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
-                                if (isLeech && SprintModeManager.isActive()) {
+                                if (isLeech && isSprintActive) {
                                     pendingLeechSkipId = item.formula.formulaId
                                 }
                             },
