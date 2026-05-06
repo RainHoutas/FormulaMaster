@@ -1,11 +1,16 @@
 package com.example.formulamaster.ui.screen
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.border
+import androidx.compose.runtime.DisposableEffect
 import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.domain.ClozeParser
+import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.MathOcrRecognizer
 import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.RecognizerErrorClassifier
@@ -65,6 +70,7 @@ import com.example.formulamaster.domain.model.FormulaWithState
 import com.example.formulamaster.ui.component.FeedbackDialog
 import com.example.formulamaster.ui.component.FeedbackPayload
 import com.example.formulamaster.ui.component.MathFormulaView
+import com.example.formulamaster.ui.component.PaperPenInputArea
 import com.example.formulamaster.ui.component.SprintSkipDialog
 import com.example.formulamaster.ui.component.TestCanvas
 import com.example.formulamaster.ui.util.vibrateError
@@ -113,6 +119,24 @@ fun TestScreen(
         remember(settings) { RecognizerRegistry.resolveLight(settings) }
     val deepRecognizer: MathOcrRecognizer? =
         remember(settings) { RecognizerRegistry.resolveDeep(settings) }
+
+    // Sprint 3 Task 3.2：读取输入方式偏好，决定手写路径还是纸笔路径
+    val appPref = remember { AppContainer.appPreference(context) }
+    val appSettings by appPref.settings.collectAsState()
+
+    // Sprint 3 Task 3.2：纸笔模式强制横屏
+    // - PaperPen → SCREEN_ORIENTATION_SENSOR_LANDSCAPE（进入即锁横屏）
+    // - 切回 Handwriting 或离开 TestScreen → onDispose 恢复 UNSPECIFIED
+    // DisposableEffect key = inputMode：模式切换时 effect 重跑，onDispose 先复原
+    val activity = context as? Activity
+    DisposableEffect(appSettings.inputMode) {
+        if (appSettings.inputMode == InputMode.PaperPen) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
 
     // 错误惩罚：屏幕边缘红光闪烁
     var flashError by remember { mutableStateOf(false) }
@@ -202,33 +226,55 @@ fun TestScreen(
                 else -> {
                     val item = uiState.currentItem ?: return@Box
                     key(item.formula.formulaId) {
-                        TestContent(
-                            item             = item,
-                            progressText     = "${uiState.currentIndex + 1} / ${uiState.queue.size}",
-                            answerPieces     = uiState.answerPieces,
-                            canSubmit        = uiState.canSubmit,
-                            lightRecognizer  = lightRecognizer,
-                            deepRecognizer   = deepRecognizer,
-                            onAppendPiece    = viewModel::appendPiece,
-                            onPopPiece       = viewModel::popLastPiece,
-                            onClearAnswer    = viewModel::clearAnswer,
-                            onWritingButNoRecognizer = ::showUnboundSnackbar,
-                            onDeepFailure    = ::showDeepFailureSnackbar,
-                            onReportFeedback = { payload -> pendingFeedback = payload },
-                            onSubmitCorrect  = { costMs ->
-                                viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
-                            },
-                            onSubmitError    = { costMs ->
-                                val isLeech = item.lapses >= 4
-                                vibrateError(context, durationMs = if (isLeech) 400L else 200L)
-                                flashError = true
-                                viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
-                                if (isLeech && isSprintActive) {
-                                    pendingLeechSkipId = item.formula.formulaId
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        // Sprint 3 Task 3.2：按 inputMode 路由
+                        // - PaperPen  → 纸笔自评（不调识别器，不消耗额度，强制横屏由外层 DisposableEffect 管理）
+                        // - Handwriting → 现有手写识别路径
+                        when (appSettings.inputMode) {
+                            InputMode.PaperPen -> PaperPenInputArea(
+                                item         = item,
+                                progressText = "${uiState.currentIndex + 1} / ${uiState.queue.size}",
+                                onSubmitCorrect = { costMs ->
+                                    viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
+                                },
+                                onSubmitError = { costMs ->
+                                    val isLeech = item.lapses >= 4
+                                    vibrateError(context, durationMs = if (isLeech) 400L else 200L)
+                                    flashError = true
+                                    viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
+                                    if (isLeech && isSprintActive) {
+                                        pendingLeechSkipId = item.formula.formulaId
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            InputMode.Handwriting -> TestContent(
+                                item             = item,
+                                progressText     = "${uiState.currentIndex + 1} / ${uiState.queue.size}",
+                                answerPieces     = uiState.answerPieces,
+                                canSubmit        = uiState.canSubmit,
+                                lightRecognizer  = lightRecognizer,
+                                deepRecognizer   = deepRecognizer,
+                                onAppendPiece    = viewModel::appendPiece,
+                                onPopPiece       = viewModel::popLastPiece,
+                                onClearAnswer    = viewModel::clearAnswer,
+                                onWritingButNoRecognizer = ::showUnboundSnackbar,
+                                onDeepFailure    = ::showDeepFailureSnackbar,
+                                onReportFeedback = { payload -> pendingFeedback = payload },
+                                onSubmitCorrect  = { costMs ->
+                                    viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
+                                },
+                                onSubmitError    = { costMs ->
+                                    val isLeech = item.lapses >= 4
+                                    vibrateError(context, durationMs = if (isLeech) 400L else 200L)
+                                    flashError = true
+                                    viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
+                                    if (isLeech && isSprintActive) {
+                                        pendingLeechSkipId = item.formula.formulaId
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }
@@ -261,25 +307,35 @@ fun TestScreen(
                 )
             }
 
-            // Sprint 1 Task 1.9：反馈对话框
+            // Sprint 1 Task 1.9 / Sprint 3 Task 3.4：反馈对话框
+            // Sprint 3 Task 3.4：复用 ClozeParser 解析 clozeData → placeholder 列表，
+            // 替代手输 LaTeX；clozeData 空数组场景下 placeholders 为空，FeedbackDialog 内部退化处理
             pendingFeedback?.let { payload ->
+                val currentItem = uiState.currentItem
+                val placeholders = remember(currentItem?.formula?.formulaId) {
+                    currentItem?.formula?.clozeData
+                        ?.let { ClozeParser.parse(it).map { ci -> ci.placeholder } }
+                        ?: emptyList()
+                }
                 FeedbackDialog(
                     strokes = payload.strokes,
                     candidates = payload.candidates,
+                    formulaLatex = currentItem?.formula?.latexCode.orEmpty(),
+                    placeholders = placeholders,
                     onDismiss = { pendingFeedback = null },
-                    onSubmit = { correctLatex ->
+                    onSubmit = { wrongPlaceholders ->
                         // 解析当时使用的识别器类型（按 mode 取 Light 或 Deep 绑定）
                         val recType: RecognizerType? = when (payload.mode) {
                             RecognitionMode.Light -> settings.lightRecognizerId
                             RecognitionMode.Deep  -> settings.deepRecognizerId
                         }
                         viewModel.submitOcrFeedback(
-                            formulaId      = uiState.currentItem?.formula?.formulaId,
-                            recognizerType = recType?.name ?: "none",
-                            mode           = payload.mode,
-                            strokes        = payload.strokes,
-                            candidates     = payload.candidates,
-                            correctLatex   = correctLatex
+                            formulaId         = currentItem?.formula?.formulaId,
+                            recognizerType    = recType?.name ?: "none",
+                            mode              = payload.mode,
+                            strokes           = payload.strokes,
+                            candidates        = payload.candidates,
+                            wrongPlaceholders = wrongPlaceholders
                         )
                         pendingFeedback = null
                         coroutineScope.launch {

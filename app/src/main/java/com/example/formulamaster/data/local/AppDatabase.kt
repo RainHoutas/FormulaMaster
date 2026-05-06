@@ -20,7 +20,7 @@ import com.example.formulamaster.data.local.entity.StudyStateEntity
         ReviewLogEntity::class,
         OcrFeedbackEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,9 +41,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "formula_master.db"
                 )
-                    // Sprint 1 Task 1.9：v1 → v2 加 ocr_feedback 表。打磨阶段仍允许重置数据，
-                    // 用户基础数据由 assets/formulas.json 在首次启动重新预加载，FSRS 进度
-                    // 量小重新激活成本可接受；避免维护手写 Migration 的工程开销
+                    // Sprint 1 Task 1.9：v1 → v2 加 ocr_feedback 表。
+                    // Sprint 3 Task 3.4：v2 → v3 改 ocr_feedback schema：
+                    //   - correctLatex 改 nullable（旧字段，新流程不再写）
+                    //   - 新增 wrongPlaceholdersJson（用户多选错误部件的 placeholder 列表 JSON）
+                    // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
+                    // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
+                    // 已收集的反馈样本会随升级清空——属预期行为。
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { INSTANCE = it }

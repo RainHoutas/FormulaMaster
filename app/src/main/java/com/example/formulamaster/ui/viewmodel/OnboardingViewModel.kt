@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.RecognizerPreference
+import com.example.formulamaster.domain.InputMode
 import kotlinx.coroutines.launch
 
 /**
@@ -25,12 +26,16 @@ class OnboardingViewModel(
 
     /**
      * 完成引导：批量写入用户在向导中输入的所有非默认值（非空才写）。
+     *
+     * Sprint 3 Task 3.3：新增 [inputMode] 参数——用户在"输入方式"页的选择。
+     * 非 null 时写入 [AppPreference]（即使是默认值 Handwriting 也写，确保持久化状态明确）。
      */
     fun completeAndPersist(
         targetExamDate: Long?,
         dailyRefreshHour: Int?,
         dailyRefreshMinute: Int?,
-        simpleTexToken: String?
+        simpleTexToken: String?,
+        inputMode: InputMode?
     ) {
         viewModelScope.launch {
             if (targetExamDate != null && targetExamDate > 0L) {
@@ -43,6 +48,10 @@ class OnboardingViewModel(
             }
             if (!simpleTexToken.isNullOrBlank()) {
                 recognizerPreference.setSimpleTexToken(simpleTexToken.trim())
+            }
+            // Sprint 3 Task 3.3：持久化用户在引导中选择的输入方式
+            if (inputMode != null) {
+                appPreference.setInputMode(inputMode)
             }
             appPreference.setFirstLaunchCompletedAt(System.currentTimeMillis())
         }

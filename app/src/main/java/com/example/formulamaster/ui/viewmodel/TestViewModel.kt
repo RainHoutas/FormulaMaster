@@ -189,17 +189,21 @@ class TestViewModel(
         }
     }
 
-    // ── Sprint 1 Task 1.9：识别失败反馈入库 ──────────────────────────────────
+    // ── Sprint 1 Task 1.9 / Sprint 3 Task 3.4：识别失败反馈入库 ──────────────
     //
     // formulaId 为可选；TestScreen 调用时传当前题目 id，其他场景调用方可传 null。
-    // strokesJson / candidatesJson 一律 Gson 序列化；recognizerType 由调用方查 settings.lightRecognizerId / deepRecognizerId 提供（无绑定时传 "none"）。
+    // strokesJson / candidatesJson / wrongPlaceholdersJson 一律 Gson 序列化；
+    // recognizerType 由调用方查 settings.lightRecognizerId / deepRecognizerId 提供（无绑定时传 "none"）。
+    //
+    // Sprint 3 Task 3.4 schema 升级：用 [wrongPlaceholders] 替代原 correctLatex 字段，
+    // 让用户从 ClozeParser 解析出的 placeholder 列表中多选错误部件，而非手输 LaTeX。
     fun submitOcrFeedback(
         formulaId: String?,
         recognizerType: String,
         mode: RecognitionMode,
         strokes: List<List<Pair<Float, Float>>>,
         candidates: List<String>,
-        correctLatex: String
+        wrongPlaceholders: List<String>
     ) {
         val gson = Gson()
         val entity = OcrFeedbackEntity(
@@ -209,7 +213,8 @@ class TestViewModel(
             mode = mode.name,
             strokesJson = gson.toJson(strokes),
             candidatesJson = gson.toJson(candidates),
-            correctLatex = correctLatex
+            correctLatex = null,
+            wrongPlaceholdersJson = gson.toJson(wrongPlaceholders)
         )
         viewModelScope.launch(Dispatchers.IO) {
             ocrFeedbackDao.insert(entity)

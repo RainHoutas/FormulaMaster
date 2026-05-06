@@ -6,7 +6,8 @@ import androidx.room.PrimaryKey
 /**
  * Sprint 1 Task 1.9 — 识别失败反馈样本
  *
- * 用户在 TestCanvas 点击 👎"都不对"后落库，记录笔画 + 当时的识别候选 + 用户手输的正确 LaTeX。
+ * 用户在 TestCanvas 点击「都不对」后落库，记录笔画 + 当时的识别候选 +
+ * 用户标记的错误部件（Sprint 3 Task 3.4 起改用 placeholder 多选）。
  *
  * ## 字段说明
  * - [strokesJson]：`List<List<Pair<Float, Float>>>` 序列化为 JSON，每笔为一组有序坐标点。
@@ -17,6 +18,14 @@ import androidx.room.PrimaryKey
  * - [recognizerType]：`RecognizerType.name`（如 "A2_SimpleTex_Turbo"）或 "none"（无绑定）。
  * - [mode]：`"Light"` / `"Deep"`，便于区分两档失败模式。
  * - [formulaId]：可选，仅在严测场景（[com.example.formulamaster.ui.screen.TestScreen]）有上下文。
+ *
+ * ## Sprint 3 Task 3.4 schema 升级
+ * - [wrongPlaceholdersJson]：用户从 [com.example.formulamaster.domain.model.ClozeItem.placeholder]
+ *   列表中多选的错误子部件 LaTeX 字符串，序列化为 JSON 数组。
+ *   "都不对"快捷按钮 = 全选所有 placeholder；clozeData 空数组场景下为 `[]`。
+ * - [correctLatex]：原"用户手输正确 LaTeX"。Sprint 3 起改 nullable 保留：
+ *   - 新版本反馈不再让用户手输 LaTeX（输入法自研工程量过大已搁置），统一为 null
+ *   - 旧版本（v2 destructive migration 前导出过的）数据导出 JSON 仍兼容
  *
  * ## 设计决策
  * 不冗余 subject/chapter 字段——导出 JSON 时按 formulaId join formulas 表即可。
@@ -34,5 +43,8 @@ data class OcrFeedbackEntity(
     val mode: String,
     val strokesJson: String,
     val candidatesJson: String,
-    val correctLatex: String
+    /** Sprint 3 Task 3.4 起改 nullable：新流程不再用，旧导出兼容。 */
+    val correctLatex: String?,
+    /** Sprint 3 Task 3.4 新增：用户标记错误部件的 LaTeX 列表（JSON 数组）。 */
+    val wrongPlaceholdersJson: String?
 )

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="file:///android_asset/katex/katex.min.css">
+<script src="file:///android_asset/katex/katex.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background-color: transparent;
+    width: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    padding: 4px;
+    font-family: -apple-system, system-ui, sans-serif;
+    color: {{TEXT_COLOR}};
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 8px;
+    user-select: none;
+    transition: background-color 150ms, border-color 150ms;
+    min-height: 36px;
+    font-size: 16px;
+  }
+
+  /* ── 可选中模式（多选区）─ outlined 风格：透明底 + 灰描边 ───────────────── */
+  body.interactive .chip {
+    border: 1px solid {{OUTLINE}};
+    padding: 6px 12px;
+    background: transparent;
+    color: {{TEXT_COLOR}};
+    cursor: pointer;
+  }
+  body.interactive .chip:active { opacity: 0.7; }
+
+  /* 选中态：主色 2dp 描边 + 容器色背景 */
+  body.interactive .chip.selected {
+    border: 2px solid {{PRIMARY}};
+    background: {{SELECTED_BG}};
+    /* border +1px，padding -1px 抵消，避免选中时布局抖动 */
+    padding: 5px 11px;
+  }
+
+  /* ── 只读模式（候选区）─ filled 风格：柔和灰底 + 无描边 + 弱化文字 ───── */
+  body:not(.interactive) .chip {
+    border: none;
+    padding: 7px 13px;  /* 抵消去描边的 1px */
+    background: {{SURFACE_VARIANT}};
+    color: {{ON_SURFACE_VARIANT}};
+  }
+  body:not(.interactive) .katex { color: {{ON_SURFACE_VARIANT}}; }
+
+  .chip .check {
+    color: {{PRIMARY}};
+    font-weight: bold;
+    font-size: 14px;
+    margin-right: 6px;
+    display: none;
+  }
+  .chip.selected .check { display: inline; }
+
+  .katex { color: {{TEXT_COLOR}}; }
+</style>
+</head>
+<body class="{{INTERACTIVE_CLASS}}">
+<div class="chips" id="chips"></div>
+<script>
+  var items = {{ITEMS_JSON}};
+  var interactive = {{INTERACTIVE}};
+  var container = document.getElementById('chips');
+  var selected = new Set();
+
+  function reportHeight() {
+    if (window.AndroidBridge && AndroidBridge.onHeightChanged) {
+      AndroidBridge.onHeightChanged(document.body.scrollHeight);
+    }
+  }
+
+  function reportSelection() {
+    if (window.AndroidBridge && AndroidBridge.onSelectionChanged) {
+      var arr = Array.from(selected).sort(function(a, b) { return a - b; });
+      AndroidBridge.onSelectionChanged(JSON.stringify(arr));
+    }
+  }
+
+  items.forEach(function(latex, i) {
+    var chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.dataset.idx = String(i);
+
+    var check = document.createElement('span');
+    check.className = 'check';
+    check.textContent = '✓';
+    chip.appendChild(check);
+
+    var content = document.createElement('span');
+    content.className = 'content';
+    chip.appendChild(content);
+
+    try {
+      katex.render(latex, content, {
+        throwOnError: false,
+        displayMode: false,
+        trust: false
+      });
+    } catch (e) {
+      content.textContent = latex;
+    }
+
+    if (interactive) {
+      chip.addEventListener('click', function() {
+        if (selected.has(i)) {
+          selected.delete(i);
+          chip.classList.remove('selected');
+        } else {
+          selected.add(i);
+          chip.classList.add('selected');
+        }
+        reportSelection();
+      });
+    }
+
+    container.appendChild(chip);
+  });
+
+  // 持续监听 body 大小变化（KaTeX 字体异步加载、容器宽度变化触发的 reflow 都会被 catch）
+  if (window.ResizeObserver) {
+    new ResizeObserver(function() {
+      reportHeight();
+    }).observe(document.body);
+  } else {
+    requestAnimationFrame(function() { requestAnimationFrame(reportHeight); });
+    window.addEventListener('resize', function() {
+      requestAnimationFrame(reportHeight);
+    });
+  }
+
+  // 双保险：字体加载完成后再报一次
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(reportHeight);
+  }
+</script>
+</body>
+</html>

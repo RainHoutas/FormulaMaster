@@ -1,5 +1,6 @@
 package com.example.formulamaster.ui.screen
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -54,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.data.AppSettings
+import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.ui.viewmodel.OnboardingViewModel
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -83,7 +88,7 @@ fun OnboardingScreen(
         factory = OnboardingViewModel.factory(LocalContext.current)
     )
 ) {
-    val pagerState = rememberPagerState(pageCount = { 5 })
+    val pagerState = rememberPagerState(pageCount = { 6 })
     val coroutineScope = rememberCoroutineScope()
 
     // ── 用户在前面几步输入的本地态（提交时统一落库）────────────────────────
@@ -93,6 +98,8 @@ fun OnboardingScreen(
     var refreshHour by remember { mutableIntStateOf(8) }
     var refreshMinute by remember { mutableIntStateOf(0) }
     var simpleTexToken by remember { mutableStateOf("") }
+    // Sprint 3 Task 3.3：用户在"输入方式"页选择的模式（默认手写识别）
+    var selectedInputMode by remember { mutableStateOf(InputMode.Handwriting) }
 
     fun finishAndPersist() {
         val timeChanged = refreshHour != 8 || refreshMinute != 0
@@ -100,7 +107,8 @@ fun OnboardingScreen(
             targetExamDate = if (examDateMs != defaultExamDate) examDateMs else null,
             dailyRefreshHour = if (timeChanged) refreshHour else null,
             dailyRefreshMinute = if (timeChanged) refreshMinute else null,
-            simpleTexToken = simpleTexToken.takeIf { it.isNotBlank() }
+            simpleTexToken = simpleTexToken.takeIf { it.isNotBlank() },
+            inputMode = selectedInputMode
         )
         onCompleted()
     }
@@ -115,7 +123,7 @@ fun OnboardingScreen(
             TopAppBar(
                 title = { },
                 actions = {
-                    if (pagerState.currentPage < 4) {
+                    if (pagerState.currentPage < 5) {
                         TextButton(onClick = { skipAll() }) {
                             Text("跳过引导")
                         }
@@ -137,30 +145,36 @@ fun OnboardingScreen(
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
+                // Sprint 3 Task 3.3：6 页；第 1 页（索引 1）为新增的"输入方式"页
+                // 原 1-4 后移到 2-5；选纸笔时"下一步"从 page 3 直接跳到 page 5，跳过 page 4
                 when (page) {
                     0 -> WelcomePage()
-                    1 -> ExamDatePage(
+                    1 -> InputModePage(
+                        selectedMode = selectedInputMode,
+                        onModeSelected = { selectedInputMode = it }
+                    )
+                    2 -> ExamDatePage(
                         currentMs = examDateMs,
                         defaultMs = defaultExamDate,
                         zone = zone,
                         onPick = { examDateMs = it }
                     )
-                    2 -> RefreshHourPage(
+                    3 -> RefreshHourPage(
                         currentHour = refreshHour,
                         currentMinute = refreshMinute,
                         onPick = { h, m -> refreshHour = h; refreshMinute = m }
                     )
-                    3 -> RecognizerPage(
+                    4 -> RecognizerPage(
                         token = simpleTexToken,
                         onTokenChange = { simpleTexToken = it }
                     )
-                    4 -> CompletionPage()
+                    5 -> CompletionPage()
                 }
             }
 
             // ── 页面指示器 ─────────────────────────────────────────────────
             PageIndicator(
-                count = 5,
+                count = 6,
                 current = pagerState.currentPage,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -178,7 +192,13 @@ fun OnboardingScreen(
                     TextButton(
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                // Sprint 3 Task 3.3：纸笔模式下从完成页（5）回退跳过识别器页（4）
+                                val prev = when {
+                                    pagerState.currentPage == 5 &&
+                                        selectedInputMode == InputMode.PaperPen -> 3
+                                    else -> pagerState.currentPage - 1
+                                }
+                                pagerState.animateScrollToPage(prev)
                             }
                         },
                         modifier = Modifier.weight(1f)
@@ -187,9 +207,15 @@ fun OnboardingScreen(
 
                 Button(
                     onClick = {
-                        if (pagerState.currentPage < 4) {
+                        if (pagerState.currentPage < 5) {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                // Sprint 3 Task 3.3：纸笔模式下从刷新时间页（3）前进时跳过识别器页（4）
+                                val next = when {
+                                    pagerState.currentPage == 3 &&
+                                        selectedInputMode == InputMode.PaperPen -> 5
+                                    else -> pagerState.currentPage + 1
+                                }
+                                pagerState.animateScrollToPage(next)
                             }
                         } else {
                             finishAndPersist()
@@ -200,11 +226,129 @@ fun OnboardingScreen(
                     Text(
                         text = when (pagerState.currentPage) {
                             0    -> "出发"
-                            4    -> "开始使用"
+                            5    -> "开始使用"
                             else -> "下一步"
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+// ── 页面：输入方式（Sprint 3 Task 3.3）──────────────────────────────────────
+
+/**
+ * 引导第 2 页（页索引 1）：让用户在"手写识别"和"纸笔自评"之间二选一。
+ *
+ * - 默认高亮"手写识别"（[InputMode.Handwriting]）
+ * - 选纸笔后显示提示"下一步会跳过识别器配置"
+ * - 选择结果通过 [onModeSelected] 上抛，由 [OnboardingScreen] 持有并在完成时落库
+ */
+@Composable
+private fun InputModePage(
+    selectedMode: InputMode,
+    onModeSelected: (InputMode) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        PageTitle("你打算怎么练公式？")
+        PageSubtitle("两种方式各有优势，随时可以在「设置」里切换。")
+        Spacer(Modifier.height(24.dp))
+
+        InputModeCard(
+            icon = "✍️",
+            title = InputMode.Handwriting.displayName,
+            description = "在屏幕上手写公式，App 自动识别成 LaTeX。\n" +
+                "体验流畅，无需动笔。需配置识别器（下一步引导，推荐 SimpleTex 免费）。",
+            isSelected = selectedMode == InputMode.Handwriting,
+            onClick = { onModeSelected(InputMode.Handwriting) }
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        InputModeCard(
+            icon = "📄",
+            title = InputMode.PaperPen.displayName,
+            description = "屏幕只展示公式名，你在纸上写完后对照标准答案自评对错。\n" +
+                "不依赖识别器，不消耗 API 额度。需要自己判断对错。",
+            isSelected = selectedMode == InputMode.PaperPen,
+            onClick = { onModeSelected(InputMode.PaperPen) }
+        )
+
+        if (selectedMode == InputMode.PaperPen) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "已选纸笔自评，下一步将跳过识别器配置。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+/**
+ * 单个输入方式选项卡片。
+ *
+ * 选中时：主色 2dp 描边 + 右侧勾号图标。
+ * 未选中时：无描边，视觉退到背景。
+ */
+@Composable
+private fun InputModeCard(
+    icon: String,
+    title: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = icon,
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (isSelected) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "已选择",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
