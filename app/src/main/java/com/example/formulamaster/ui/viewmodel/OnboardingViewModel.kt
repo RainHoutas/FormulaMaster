@@ -8,6 +8,7 @@ import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.RecognizerPreference
 import com.example.formulamaster.domain.InputMode
+import com.example.formulamaster.domain.KaoyanSubject
 import kotlinx.coroutines.launch
 
 /**
@@ -29,13 +30,17 @@ class OnboardingViewModel(
      *
      * Sprint 3 Task 3.3：新增 [inputMode] 参数——用户在"输入方式"页的选择。
      * 非 null 时写入 [AppPreference]（即使是默认值 Handwriting 也写，确保持久化状态明确）。
+     *
+     * 学习流程重构 Sprint 1 Task 1.1：新增 [kaoyanSubject] 参数——用户在"考数几"页的选择。
+     * 非 null 时写入（默认 Type1 也写，确保持久化状态明确）。
      */
     fun completeAndPersist(
         targetExamDate: Long?,
         dailyRefreshHour: Int?,
         dailyRefreshMinute: Int?,
         simpleTexToken: String?,
-        inputMode: InputMode?
+        inputMode: InputMode?,
+        kaoyanSubject: KaoyanSubject?
     ) {
         viewModelScope.launch {
             if (targetExamDate != null && targetExamDate > 0L) {
@@ -52,6 +57,10 @@ class OnboardingViewModel(
             // Sprint 3 Task 3.3：持久化用户在引导中选择的输入方式
             if (inputMode != null) {
                 appPreference.setInputMode(inputMode)
+            }
+            // 学习流程重构 Sprint 1 Task 1.1：持久化考研数学子科目
+            if (kaoyanSubject != null) {
+                appPreference.setKaoyanSubject(kaoyanSubject)
             }
             appPreference.setFirstLaunchCompletedAt(System.currentTimeMillis())
         }

@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.formulamaster.domain.InputMode
+import com.example.formulamaster.domain.KaoyanSubject
+import com.example.formulamaster.domain.UseScene
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +41,11 @@ data class AppSettings(
     /** 首次启动引导完成时间戳（Unix ms）。0 表示未完成 → 启动时弹 Onboarding。 */
     val firstLaunchCompletedAt: Long = 0L,
     /** 严测 / 默写时的输入方式。Sprint 3 Task 3.1 引入。 */
-    val inputMode: InputMode = InputMode.Default
+    val inputMode: InputMode = InputMode.Default,
+    /** 学习流程重构 Sprint 1 Task 1.1 — 应用场景(默认考研数学)。 */
+    val useScene: UseScene = UseScene.Default,
+    /** 学习流程重构 Sprint 1 Task 1.1 — 考研数学子科目;仅当 [useScene] = [UseScene.KaoyanMath] 时生效。 */
+    val kaoyanSubject: KaoyanSubject = KaoyanSubject.Default
 ) {
     /** 实际生效的考试日期：用户已设过则用持久化值，否则取动态默认（当前年份 12-20）。 */
     val effectiveTargetExamDate: Long
@@ -105,7 +111,9 @@ class AppPreference(
                 dailyRefreshMinuteOfHour = prefs[KEY_REFRESH_MINUTE] ?: 0,
                 targetExamDate = prefs[KEY_TARGET_EXAM_DATE] ?: 0L,
                 firstLaunchCompletedAt = prefs[KEY_FIRST_LAUNCH_COMPLETED_AT] ?: 0L,
-                inputMode = prefs[KEY_INPUT_MODE]?.toInputModeOrDefault() ?: InputMode.Default
+                inputMode = prefs[KEY_INPUT_MODE]?.toInputModeOrDefault() ?: InputMode.Default,
+                useScene = prefs[KEY_USE_SCENE]?.toUseSceneOrDefault() ?: UseScene.Default,
+                kaoyanSubject = KaoyanSubject.fromName(prefs[KEY_KAOYAN_SUBJECT])
             )
         }
         .onEach { _isLoaded.value = true }
@@ -142,11 +150,27 @@ class AppPreference(
         dataStore.edit { it[KEY_INPUT_MODE] = mode.name }
     }
 
+    /** 学习流程重构 Sprint 1 Task 1.1：写入应用场景。 */
+    suspend fun setUseScene(scene: UseScene) {
+        dataStore.edit { it[KEY_USE_SCENE] = scene.name }
+    }
+
+    /** 学习流程重构 Sprint 1 Task 1.1：写入考研数学子科目。 */
+    suspend fun setKaoyanSubject(subject: KaoyanSubject) {
+        dataStore.edit { it[KEY_KAOYAN_SUBJECT] = subject.name }
+    }
+
     /** 解析 DataStore 存储的字符串到枚举；未知值（旧版本字段被删/改名）按默认处理。 */
     private fun String.toInputModeOrDefault(): InputMode = try {
         InputMode.valueOf(this)
     } catch (e: IllegalArgumentException) {
         InputMode.Default
+    }
+
+    private fun String.toUseSceneOrDefault(): UseScene = try {
+        UseScene.valueOf(this)
+    } catch (e: IllegalArgumentException) {
+        UseScene.Default
     }
 
     companion object {
@@ -156,6 +180,8 @@ class AppPreference(
         private val KEY_TARGET_EXAM_DATE          = longPreferencesKey("target_exam_date")
         private val KEY_FIRST_LAUNCH_COMPLETED_AT = longPreferencesKey("first_launch_completed_at")
         private val KEY_INPUT_MODE                = stringPreferencesKey("input_mode")
+        private val KEY_USE_SCENE                 = stringPreferencesKey("use_scene")
+        private val KEY_KAOYAN_SUBJECT            = stringPreferencesKey("kaoyan_subject")
 
         private val Context.appDataStore: DataStore<Preferences>
             by preferencesDataStore(name = DATASTORE_NAME)

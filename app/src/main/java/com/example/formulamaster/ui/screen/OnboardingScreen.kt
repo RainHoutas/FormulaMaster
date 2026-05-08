@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.data.AppSettings
 import com.example.formulamaster.domain.InputMode
+import com.example.formulamaster.domain.KaoyanSubject
 import com.example.formulamaster.ui.viewmodel.OnboardingViewModel
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -66,14 +67,16 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Sprint 2 Task 2.5 — 首次启动引导。
+ * Sprint 2 Task 2.5 — 首次启动引导（学习流程重构 Sprint 1 Task 1.1 升级为 7 页）。
  *
- * 5 页全屏 HorizontalPager：
+ * 7 页全屏 HorizontalPager：
  *  1. 欢迎页：项目自我介绍
- *  2. 考试目标日期：DatePicker，可保留默认
- *  3. 复习刷新时间：TimePicker，可保留默认
- *  4. 配置识别器：SimpleTex token 单输入（可跳过）
- *  5. 完成：致谢 + 「开始使用」
+ *  2. 你考数学几（数一/数二/数三，决定公式池）
+ *  3. 输入方式（手写识别 / 纸笔自评）
+ *  4. 考试目标日期：DatePicker，可保留默认
+ *  5. 复习刷新时间：TimePicker，可保留默认
+ *  6. 配置识别器：SimpleTex token 单输入（纸笔自评模式跳过）
+ *  7. 完成：致谢 + 「开始使用」
  *
  * 顶部："跳过引导" TextButton（直接落库 firstLaunchCompletedAt 并退出）。
  * 底部：上一步 / 下一步（最后一页变"开始使用"）。
@@ -88,7 +91,7 @@ fun OnboardingScreen(
         factory = OnboardingViewModel.factory(LocalContext.current)
     )
 ) {
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 7 })
     val coroutineScope = rememberCoroutineScope()
 
     // ── 用户在前面几步输入的本地态（提交时统一落库）────────────────────────
@@ -100,6 +103,8 @@ fun OnboardingScreen(
     var simpleTexToken by remember { mutableStateOf("") }
     // Sprint 3 Task 3.3：用户在"输入方式"页选择的模式（默认手写识别）
     var selectedInputMode by remember { mutableStateOf(InputMode.Handwriting) }
+    // 学习流程重构 Sprint 1 Task 1.1：用户在"考数几"页的选择（默认数学一）
+    var selectedKaoyanSubject by remember { mutableStateOf(KaoyanSubject.Type1) }
 
     fun finishAndPersist() {
         val timeChanged = refreshHour != 8 || refreshMinute != 0
@@ -108,7 +113,8 @@ fun OnboardingScreen(
             dailyRefreshHour = if (timeChanged) refreshHour else null,
             dailyRefreshMinute = if (timeChanged) refreshMinute else null,
             simpleTexToken = simpleTexToken.takeIf { it.isNotBlank() },
-            inputMode = selectedInputMode
+            inputMode = selectedInputMode,
+            kaoyanSubject = selectedKaoyanSubject
         )
         onCompleted()
     }
@@ -123,7 +129,7 @@ fun OnboardingScreen(
             TopAppBar(
                 title = { },
                 actions = {
-                    if (pagerState.currentPage < 5) {
+                    if (pagerState.currentPage < 6) {
                         TextButton(onClick = { skipAll() }) {
                             Text("跳过引导")
                         }
@@ -145,36 +151,40 @@ fun OnboardingScreen(
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                // Sprint 3 Task 3.3：6 页；第 1 页（索引 1）为新增的"输入方式"页
-                // 原 1-4 后移到 2-5；选纸笔时"下一步"从 page 3 直接跳到 page 5，跳过 page 4
+                // 学习流程重构 Sprint 1 Task 1.1：7 页；第 2 页（索引 1）为新增的"考数几"页
+                // 原 1-5 后移到 2-6；选纸笔时"下一步"从 page 4 直接跳到 page 6，跳过 page 5
                 when (page) {
                     0 -> WelcomePage()
-                    1 -> InputModePage(
+                    1 -> KaoyanSubjectPage(
+                        selectedSubject = selectedKaoyanSubject,
+                        onSubjectSelected = { selectedKaoyanSubject = it }
+                    )
+                    2 -> InputModePage(
                         selectedMode = selectedInputMode,
                         onModeSelected = { selectedInputMode = it }
                     )
-                    2 -> ExamDatePage(
+                    3 -> ExamDatePage(
                         currentMs = examDateMs,
                         defaultMs = defaultExamDate,
                         zone = zone,
                         onPick = { examDateMs = it }
                     )
-                    3 -> RefreshHourPage(
+                    4 -> RefreshHourPage(
                         currentHour = refreshHour,
                         currentMinute = refreshMinute,
                         onPick = { h, m -> refreshHour = h; refreshMinute = m }
                     )
-                    4 -> RecognizerPage(
+                    5 -> RecognizerPage(
                         token = simpleTexToken,
                         onTokenChange = { simpleTexToken = it }
                     )
-                    5 -> CompletionPage()
+                    6 -> CompletionPage()
                 }
             }
 
             // ── 页面指示器 ─────────────────────────────────────────────────
             PageIndicator(
-                count = 6,
+                count = 7,
                 current = pagerState.currentPage,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,10 +202,10 @@ fun OnboardingScreen(
                     TextButton(
                         onClick = {
                             coroutineScope.launch {
-                                // Sprint 3 Task 3.3：纸笔模式下从完成页（5）回退跳过识别器页（4）
+                                // 学习流程重构 Sprint 1 Task 1.1：纸笔模式下从完成页（6）回退跳过识别器页（5）
                                 val prev = when {
-                                    pagerState.currentPage == 5 &&
-                                        selectedInputMode == InputMode.PaperPen -> 3
+                                    pagerState.currentPage == 6 &&
+                                        selectedInputMode == InputMode.PaperPen -> 4
                                     else -> pagerState.currentPage - 1
                                 }
                                 pagerState.animateScrollToPage(prev)
@@ -207,12 +217,12 @@ fun OnboardingScreen(
 
                 Button(
                     onClick = {
-                        if (pagerState.currentPage < 5) {
+                        if (pagerState.currentPage < 6) {
                             coroutineScope.launch {
-                                // Sprint 3 Task 3.3：纸笔模式下从刷新时间页（3）前进时跳过识别器页（4）
+                                // 学习流程重构 Sprint 1 Task 1.1：纸笔模式下从刷新时间页（4）前进时跳过识别器页（5）
                                 val next = when {
-                                    pagerState.currentPage == 3 &&
-                                        selectedInputMode == InputMode.PaperPen -> 5
+                                    pagerState.currentPage == 4 &&
+                                        selectedInputMode == InputMode.PaperPen -> 6
                                     else -> pagerState.currentPage + 1
                                 }
                                 pagerState.animateScrollToPage(next)
@@ -226,11 +236,117 @@ fun OnboardingScreen(
                     Text(
                         text = when (pagerState.currentPage) {
                             0    -> "出发"
-                            5    -> "开始使用"
+                            6    -> "开始使用"
                             else -> "下一步"
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+// ── 页面：你考数学几（学习流程重构 Sprint 1 Task 1.1）─────────────────────
+
+/**
+ * 引导第 2 页（页索引 1）：让用户在"数学一/数学二/数学三"中三选一。
+ *
+ * - 默认高亮"数学一"（[KaoyanSubject.Type1]）
+ * - 数二/数三的描述明确写"不考概率"/"经济类"以避免误选
+ * - 选择结果通过 [onSubjectSelected] 上抛，由 [OnboardingScreen] 持有并在完成时落库
+ *
+ * 当前不让用户选 [com.example.formulamaster.domain.UseScene]（默认 KaoyanMath），
+ * 故本页固定显示。未来加 Scene 选择页后，此页应仅在 KaoyanMath 时显示。
+ */
+@Composable
+private fun KaoyanSubjectPage(
+    selectedSubject: KaoyanSubject,
+    onSubjectSelected: (KaoyanSubject) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        PageTitle("你考数学几？")
+        PageSubtitle("数一/二/三的公式范围不同，App 会按你选的过滤公式池。")
+        Spacer(Modifier.height(24.dp))
+
+        KaoyanSubjectCard(
+            subject = KaoyanSubject.Type1,
+            isSelected = selectedSubject == KaoyanSubject.Type1,
+            onClick = { onSubjectSelected(KaoyanSubject.Type1) }
+        )
+        Spacer(Modifier.height(12.dp))
+        KaoyanSubjectCard(
+            subject = KaoyanSubject.Type2,
+            isSelected = selectedSubject == KaoyanSubject.Type2,
+            onClick = { onSubjectSelected(KaoyanSubject.Type2) }
+        )
+        Spacer(Modifier.height(12.dp))
+        KaoyanSubjectCard(
+            subject = KaoyanSubject.Type3,
+            isSelected = selectedSubject == KaoyanSubject.Type3,
+            onClick = { onSubjectSelected(KaoyanSubject.Type3) }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "随时可以在「设置」里改。改完后公式列表立刻按新的范围过滤。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * 单个数学子科目选项卡片。视觉风格与 [InputModeCard] 对齐。
+ */
+@Composable
+private fun KaoyanSubjectCard(
+    subject: KaoyanSubject,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = subject.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = subject.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (isSelected) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "已选择",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

@@ -20,7 +20,7 @@ import com.example.formulamaster.data.local.entity.StudyStateEntity
         ReviewLogEntity::class,
         OcrFeedbackEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +45,10 @@ abstract class AppDatabase : RoomDatabase() {
                     // Sprint 3 Task 3.4：v2 → v3 改 ocr_feedback schema：
                     //   - correctLatex 改 nullable（旧字段，新流程不再写）
                     //   - 新增 wrongPlaceholdersJson（用户多选错误部件的 placeholder 列表 JSON）
+                    // 学习流程重构 Sprint 1 Task 1.2：v3 → v4 扩 FormulaEntity schema：
+                    //   - 加 purpose / preconditions / parents / siblings / confusableWith /
+                    //     typicalProblems / commonErrors / mnemonic / examWeight / scene
+                    //   - derivationSteps 格式重写为 [{latex, note}, ...] 对象数组
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。
