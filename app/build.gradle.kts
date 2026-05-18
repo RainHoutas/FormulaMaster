@@ -38,6 +38,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Robolectric 需要 Android 资源 + 让 JVM 单测能 setApplication / loadClass
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -78,6 +85,12 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Room DAO 单测（in-memory DB + JOIN 真实 SQL 验证），需 Robolectric 提供 Context
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    // 显式声明 Robolectric SDK 运行时 jar，避免它自己去 Maven 拉（受限网络下会 SSL 失败）
+    testRuntimeOnly(libs.robolectric.android.all)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

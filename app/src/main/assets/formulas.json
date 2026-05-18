@@ -18,7 +18,8 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 5,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "2", "3"]
   },
   {
     "formulaId": "calc_lhopital_01",
@@ -39,7 +40,8 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 4,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "2", "3"]
   },
   {
     "formulaId": "calc_newton_leibniz_01",
@@ -60,7 +62,8 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 5,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "2", "3"]
   },
   {
     "formulaId": "la_det_expansion_01",
@@ -81,7 +84,8 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 4,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "2", "3"]
   },
   {
     "formulaId": "prob_total_prob_01",
@@ -102,7 +106,8 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 4,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "3"]
   },
   {
     "formulaId": "prob_expectation_01",
@@ -123,6 +128,7 @@
     "commonErrors": "[]",
     "mnemonic": null,
     "examWeight": 4,
-    "scene": "KaoyanMath"
+    "scene": "KaoyanMath",
+    "appliesTo": ["1", "3"]
   }
 ]

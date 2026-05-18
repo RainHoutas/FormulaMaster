@@ -50,24 +50,46 @@ ui/theme/            → Material 3 主题
 
 ## 当前进度
 
-**阶段**：原型阶段已完成（2026-04-24 收尾），**当前进行中：打磨完善阶段 · Sprint 1**（手写识别真实落地）。
+**阶段**：原型阶段（01）✅ + 打磨完善阶段（02）✅ 均已归档，**当前进行中：学习流程重构阶段（03）· Sprint 1**（数据基础 + Scene/Subject + 6 类子卡 schema）。
+
+Sprint 1 已完成：Task 1.1（`UseScene` + `KaoyanSubject` + Onboarding 加"考数几"页）+ Task 1.2（`FormulaEntity` 9→18 字段 + `DerivationStep` 重写）。
+**下一个 Task**：1.3 `FormulaSubjectMap` 多对多关系表 + 查询过滤。
 
 ## 🚨 新对话开工前必读（强制顺序）
 
 按顺序读取以下文件，缺一不可：
 
-1. **`memory/HANDOFF_TO_NEXT_SESSION.md`** — 对话模式约定、工作流、项目定位、Sprint 1 速览、踩坑清单
-2. **`docs/phases/02_打磨阶段_TODO.md`** — 当前 Sprint 的 Task 清单与 Done 标准
-3. **`docs/改进点池.md`** — 新想法集散地、分类标签、已拒绝决策（含 L2 搁置原因）
-4. **`TODO.md`**（项目根） — 指针文件，确认文档结构
+1. **`TODO.md`**（项目根）— 指针文件，导航到当前阶段
+2. **`docs/RFC_学习流程重构.md`** 🔥 — **当前阶段设计底稿**，所有 Sprint 决策来源
+3. **`docs/phases/03_学习流程重构_TODO.md`** — 当前 Sprint 的 Task 清单与 Done 标准
+4. **`docs/改进点池.md`** — 新想法集散地、分类标签、已拒绝/搁置决策
 
-读完这四个文件，你就知道：
-- 当前该做什么（Sprint 1 Task 列表）
+> auto-memory 索引（不放项目内）：`~/.claude/projects/-home-houtas-StudioProjects-FormulaMaster/memory/MEMORY.md`，
+> 含 `HANDOFF_TO_NEXT_SESSION.md`（对话模式约定 + 踩坑清单累积）和 `project_progress.md`（开发进度快照）。
+
+读完这几个文件，你就知道：
+- 当前该做什么（03 阶段 Sprint 1 Task 列表）
 - 用户冒出新想法时往哪里写（改进点池"待评估"分区，**不打断当前 Sprint**）
 - 用户说"开新 Sprint"时怎么规划（扫改进点池 → 按 `(优先级 ASC, 时间 ASC)` 排序 → 取 TOP 4-8 询问确认）
-- 哪些决策已经做过（L2 自训练已搁置、三路识别器并列、用户自填 API Key）
+- 哪些决策已经做过（L2 自训练 / LaTeX 输入法 / Test 移出 NavBar 都已搁置或拒绝）
 
 **铁律**：涉及方案选择（如设置页位置、API 默认选哪个）必须先问用户再动手，不要替用户做决策。
+
+## 🛠️ 工具：Android CLI（优先使用）
+
+本机已装好 `android` 命令（位置：系统 PATH）。**优先用它替代手敲 `./gradlew installDebug` + adb**：
+
+| 子命令 | 用途 |
+|------|------|
+| `android run` | 一键编译 + 部署到当前设备/模拟器 |
+| `android emulator` | 列出 / 启动 / 关闭 AVD |
+| `android layout` | 输出当前 App 的布局树（Compose UI 调试，替代部分诊断角标） |
+| `android screen` | 截屏 / 录屏（替代用户手动截图反馈） |
+| `android describe` | 分析项目元数据（manifest / gradle 配置摘要） |
+| `android sdk` | 列出已装 / 待装 SDK 组件 |
+| `android docs` | 离线查 Android API 文档 |
+
+注意：网络隔离环境下首次运行会下载内嵌资源，需用户确认；运行时默认收集匿名指标，可加 `--no-metrics` 关闭。
 
 ## M3 组件规范（必须遵守）
 - 卡片：ElevatedCard + RoundedCornerShape(16.dp)

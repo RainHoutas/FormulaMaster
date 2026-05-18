@@ -15,11 +15,14 @@ import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.SprintModeManager
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -102,25 +105,38 @@ class ReviewViewModel(
 
     init {
         viewModelScope.launch {
-            combine(
-                repository.getAll(),
-                studyStateDao.getTodayReviewQueue(sessionStartMs)
-            ) { formulas, states ->
-                val formulaMap = formulas.associateBy { it.formulaId }
-                states.mapNotNull { state ->
-                    formulaMap[state.formulaId]?.let { formula ->
-                        FormulaWithState(formula, state)
+            // Sprint 1 Task 1.3：按用户 kaoyanSubject 过滤复习队列。
+            // subject 切换时 flatMapLatest 取消旧订阅，重置会话快照 + 把 UI 推回 loading，
+            // 等新 subject 的队列第一次 emit 后再次冻结。
+            @OptIn(ExperimentalCoroutinesApi::class)
+            appPreference.settings
+                .map { it.kaoyanSubject }
+                .distinctUntilChanged()
+                .flatMapLatest { subject ->
+                    sessionItems = null
+                    _uiState.update { it.copy(isLoading = true, completedCount = 0) }
+                    combine(
+                        repository.observeFormulasFor(subject),
+                        studyStateDao.getTodayReviewQueue(sessionStartMs)
+                    ) { formulas, states ->
+                        val formulaMap = formulas.associateBy { it.formulaId }
+                        states.mapNotNull { state ->
+                            formulaMap[state.formulaId]?.let { formula ->
+                                FormulaWithState(formula, state)
+                            }
+                        }
                     }
                 }
-            }.collect { queue ->
-                // 首次加载时冻结快照（后续 DB 变动不影响本次会话列表）
-                if (sessionItems == null) {
-                    sessionItems = queue
+                .collect { queue ->
+                    // 首次加载（或 subject 切换后首次重新加载）冻结快照，
+                    // 后续评分落库 → DB 变动不影响本次会话列表（防 Pager 跳位）
+                    if (sessionItems == null) {
+                        sessionItems = queue
+                    }
+                    _uiState.update {
+                        it.copy(queue = sessionItems!!, isLoading = false)
+                    }
                 }
-                _uiState.update {
-                    it.copy(queue = sessionItems!!, isLoading = false)
-                }
-            }
         }
     }
 
@@ -219,7 +235,7 @@ class ReviewViewModel(
                 val app = context.applicationContext
                 val db = AppContainer.appDatabase(app)
                 return ReviewViewModel(
-                    FormulaRepository(app, db.formulaDao()),
+                    FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
                     db.studyStateDao(),
                     db.reviewLogDao(),
                     AppContainer.appPreference(app)

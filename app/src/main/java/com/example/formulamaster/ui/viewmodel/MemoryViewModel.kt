@@ -12,10 +12,14 @@ import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,17 +43,26 @@ class MemoryViewModel(
 
     init {
         viewModelScope.launch {
-            combine(
-                repository.getAll(),
-                studyStateDao.getAllStates()
-            ) { formulas, states ->
-                val stateMap = states.associateBy { it.formulaId }
-                formulas.map { formula ->
-                    FormulaWithState(formula, stateMap[formula.formulaId])
+            // Sprint 1 Task 1.3：按用户 kaoyanSubject 过滤公式列表，切换立即生效。
+            // flatMapLatest 在 subject 变化时取消旧的上游订阅，重订到新 subject 的 Flow。
+            @OptIn(ExperimentalCoroutinesApi::class)
+            appPreference.settings
+                .map { it.kaoyanSubject }
+                .distinctUntilChanged()
+                .flatMapLatest { subject ->
+                    combine(
+                        repository.observeFormulasFor(subject),
+                        studyStateDao.getAllStates()
+                    ) { formulas, states ->
+                        val stateMap = states.associateBy { it.formulaId }
+                        formulas.map { formula ->
+                            FormulaWithState(formula, stateMap[formula.formulaId])
+                        }
+                    }
                 }
-            }.collect { list ->
-                _uiState.update { it.copy(formulas = list, isLoading = false) }
-            }
+                .collect { list ->
+                    _uiState.update { it.copy(formulas = list, isLoading = false) }
+                }
         }
     }
 
@@ -94,7 +107,7 @@ class MemoryViewModel(
                 val app = context.applicationContext
                 val db = AppContainer.appDatabase(app)
                 return MemoryViewModel(
-                    FormulaRepository(app, db.formulaDao()),
+                    FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
                     db.studyStateDao(),
                     AppContainer.appPreference(app)
                 ) as T

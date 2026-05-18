@@ -240,7 +240,7 @@ class TestViewModel(
                 val app = context.applicationContext
                 val db = AppContainer.appDatabase(app)
                 return TestViewModel(
-                    FormulaRepository(app, db.formulaDao()),
+                    FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
                     db.studyStateDao(),
                     db.reviewLogDao(),
                     db.ocrFeedbackDao(),

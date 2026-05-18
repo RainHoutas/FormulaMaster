@@ -5,10 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.formulamaster.data.local.dao.FormulaDao
+import com.example.formulamaster.data.local.dao.FormulaSubjectMapDao
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.entity.FormulaEntity
+import com.example.formulamaster.data.local.entity.FormulaSubjectMapEntity
 import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.local.entity.StudyStateEntity
@@ -18,9 +20,10 @@ import com.example.formulamaster.data.local.entity.StudyStateEntity
         FormulaEntity::class,
         StudyStateEntity::class,
         ReviewLogEntity::class,
-        OcrFeedbackEntity::class
+        OcrFeedbackEntity::class,
+        FormulaSubjectMapEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun studyStateDao(): StudyStateDao
     abstract fun reviewLogDao(): ReviewLogDao
     abstract fun ocrFeedbackDao(): OcrFeedbackDao
+    abstract fun formulaSubjectMapDao(): FormulaSubjectMapDao
 
     companion object {
         @Volatile
@@ -49,6 +53,9 @@ abstract class AppDatabase : RoomDatabase() {
                     //   - 加 purpose / preconditions / parents / siblings / confusableWith /
                     //     typicalProblems / commonErrors / mnemonic / examWeight / scene
                     //   - derivationSteps 格式重写为 [{latex, note}, ...] 对象数组
+                    // 学习流程重构 Sprint 1 Task 1.3：v4 → v5 新增 formula_subject_map 表
+                    //   - 多对多关系：公式 ↔ 数一/数二/数三 子科目
+                    //   - 外键级联：FormulaEntity 删除时同步清理映射行
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。

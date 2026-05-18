@@ -19,6 +19,9 @@ okhttp = "4.12.0"
 kotlinxCoroutinesTest = "1.8.0"
 datastore = "1.1.1"
 tink = "1.13.0"
+robolectric = "4.13"
+robolectricAndroidAll = "13-robolectric-9030017-i6"
+androidxTestCore = "1.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -67,6 +70,20 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 # Tink（Google 官方加密库，AES256-GCM + AndroidKeyStore 主密钥）
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
+
+# Room testing（用于 in-memory DB 的 DAO 单测，需 Robolectric 提供 Context）
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+
+# Robolectric（让 JVM 单测能跑 Android Context-依赖代码，例如 Room.inMemoryDatabaseBuilder）
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+
+# Robolectric SDK 运行时 jar（SDK 33 = Android 13）。
+# 显式声明而非让 Robolectric 自带的 MavenArtifactFetcher 在测试运行时去拉，
+# 在受限网络环境（如 CI / sandbox）下避免 SSLHandshakeException。
+robolectric-android-all = { group = "org.robolectric", name = "android-all-instrumented", version.ref = "robolectricAndroidAll" }
+
+# AndroidX Test Core（提供 ApplicationProvider，Robolectric 拿 Context 的标准入口）
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
