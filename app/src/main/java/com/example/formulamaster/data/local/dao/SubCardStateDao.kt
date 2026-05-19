@@ -55,21 +55,26 @@ interface SubCardStateDao {
     fun getTodayReviewQueue(currentTime: Long): Flow<List<SubCardStateEntity>>
 
     /**
-     * 错题反向链路（Task 1.6 调用）：将给定 formulaId 的**所有子卡**强制写入新 stability +
-     * nextReviewTime，并把 lapses+1。
+     * 错题反向链路（Task 1.6 调用）：将给定 formulaId 的**所有子卡** stability 按
+     * `MAX(stability × multiplier, minStability)` 比例砍低，同时写入新 nextReviewTime 并
+     * `lapses + 1`。
      *
-     * 在 SQL 里直接更新比 Kotlin 端读取-修改-写回更原子。
+     * 选 A 决策（2026-05-19）：multiplier=0.5 + minStability=0.5；保留原强度信号，
+     * 强公式仍保留较高底子。
+     *
+     * 在 SQL 里直接 UPDATE 比 Kotlin 端读取-修改-写回更原子。
      */
     @Query("""
         UPDATE sub_card_states
-        SET stability = :stability,
+        SET stability = MAX(stability * :stabilityMultiplier, :minStability),
             nextReviewTime = :nextReviewTime,
             lapses = lapses + 1
         WHERE formulaId = :formulaId
     """)
     suspend fun applyErrorReportPenalty(
         formulaId: String,
-        stability: Double,
+        stabilityMultiplier: Double,
+        minStability: Double,
         nextReviewTime: Long
     )
 }

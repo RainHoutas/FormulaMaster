@@ -122,19 +122,42 @@ class SubCardStateDaoTest {
     }
 
     @Test
-    fun `applyErrorReportPenalty 批量改 6 张子卡`() = runTest {
+    fun `applyErrorReportPenalty 砍半 6 张子卡（强公式）`() = runTest {
         seedFormula("f1")
+        // 强公式：S = 10
         dao.insertAll(CardType.entries.map { fakeSubCard("f1", it, stability = 10.0, lapses = 2) })
 
         val penaltyTime = 2_000_000L
-        dao.applyErrorReportPenalty("f1", stability = 0.5, nextReviewTime = penaltyTime)
+        dao.applyErrorReportPenalty("f1",
+            stabilityMultiplier = 0.5,
+            minStability = 0.5,
+            nextReviewTime = penaltyTime)
 
         val after = dao.getByFormulaId("f1")
         assertEquals(6, after.size)
         after.forEach {
-            assertEquals(0.5, it.stability, 1e-9)
+            // 10 × 0.5 = 5（> minStability=0.5，按倍率走）
+            assertEquals(5.0, it.stability, 1e-9)
             assertEquals(penaltyTime, it.nextReviewTime)
             assertEquals(3, it.lapses)
+        }
+    }
+
+    @Test
+    fun `applyErrorReportPenalty 下限保护（弱公式）`() = runTest {
+        seedFormula("f1")
+        // 弱公式：S = 0.5（砍半会到 0.25 < minStability，应保留在 minStability=0.5）
+        dao.insertAll(CardType.entries.map { fakeSubCard("f1", it, stability = 0.5, lapses = 0) })
+
+        dao.applyErrorReportPenalty("f1",
+            stabilityMultiplier = 0.5,
+            minStability = 0.5,
+            nextReviewTime = 1_000_000L)
+
+        val after = dao.getByFormulaId("f1")
+        after.forEach {
+            assertEquals(0.5, it.stability, 1e-9) // 触发下限
+            assertEquals(1, it.lapses)
         }
     }
 

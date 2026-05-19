@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.FormulaDao
 import com.example.formulamaster.data.local.dao.FormulaSubjectMapDao
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
+import com.example.formulamaster.data.local.entity.ErrorReportEntity
 import com.example.formulamaster.data.local.entity.FormulaEntity
 import com.example.formulamaster.data.local.entity.FormulaSubjectMapEntity
 import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
@@ -24,9 +26,10 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         ReviewLogEntity::class,
         OcrFeedbackEntity::class,
         FormulaSubjectMapEntity::class,
-        SubCardStateEntity::class
+        SubCardStateEntity::class,
+        ErrorReportEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ocrFeedbackDao(): OcrFeedbackDao
     abstract fun formulaSubjectMapDao(): FormulaSubjectMapDao
     abstract fun subCardStateDao(): SubCardStateDao
+    abstract fun errorReportDao(): ErrorReportDao
 
     companion object {
         @Volatile
@@ -63,6 +67,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 1 Task 1.5：v5 → v6 新增 sub_card_states 表
                     //   - 子卡级 FSRS 状态，复合主键 (formulaId, cardType)
                     //   - 母 study_states 保留作公式整体进度展示，FSRS 调度切换到 sub_card_states
+                    // 学习流程重构 Sprint 1 Task 1.6：v6 → v7 新增 error_reports 表
+                    //   - 错题反向链路记录；createdAt 索引便于错题本按时间倒序展示
+                    //   - 写入由 ErrorReportProcessor 统一触发（同步 SubCardState 砍半 + 推次日）
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。

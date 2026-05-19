@@ -154,7 +154,7 @@ related:
 
 ### 主题
 
-把 Review Tab 从单一卡型升级为按 retrievability 自适应抽样的三类卡型；FormulaDetail 扩为完整六步学习仪式。
+把 Review Tab 从单一卡型升级为按 retrievability 自适应抽样的三类卡型；FormulaDetail 扩为完整**七步**学习仪式（2026-05-19 修订）。
 
 ### Task 占位（待 Sprint 1 收尾后细化）
 
@@ -162,14 +162,15 @@ related:
 - [ ] Task 2.2 C1 识别卡（公式名 → 完整公式 + 条件 + 用途）
 - [ ] Task 2.3 C2 加权 cloze（按 1.4 抽样多挖空）
 - [ ] Task 2.4 C3 条件先行卡（2 秒强制展示**条件 + 用途**）
-- [ ] Task 2.5 FormulaDetail 重构：六步学习仪式
+- [ ] Task 2.5 FormulaDetail 重构：七步学习仪式（2026-05-19 由六步扩为七步）
   1. 条件 + 用途先行卡（2s 强制展示）
   2. 拆块讲解（可滑动）
   3. 推导链静态展示（DerivationStep 渲染）
   4. 临摹手写（沿用 TracingCanvas）
   5. Worked Example × 2（看例，只读）
   6. 最小填空预热（**挖公式本体**一处）
-- [ ] Task 2.6 巩固阶段触发（学习后立即"识别 + 单填空"，同日 10m/30m/1d 短间隔）
+  7. **巩固迷你卡序列**：3 张 C1+C2+C3 混合 mini-card；错答记下，每轮做完后回头重做错的，**全 3 张通过才结业**；结业后 6 张 SubCardStateEntity 初始化 `stability=1.0, nextReviewTime=次日刷新整点`
+- [ ] ~~Task 2.6 巩固阶段触发（学习后立即"识别 + 单填空"，同日 10m/30m/1d 短间隔）~~ **拒绝（2026-05-19）**：违反 RFC §3.5.1「APP 不做同日二次推送」恒久立场；同会话内的巩固由 Task 2.5 第 7 步承担，跨日走标准 FSRS
 - [ ] Task 2.7 单测 + 真机验收
 
 ---
