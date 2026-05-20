@@ -23,7 +23,9 @@ import androidx.room.Index
  * @param nextReviewTime          下次复习时间戳（Unix ms），已截断到刷新整点
  * @param totalReviews            累计复习次数
  * @param lapses                  遗忘次数（R=1 累计）
- * @param consecutiveGoodReviews  连续 R≥3 次数（用于子卡是否升入稳定档判断）
+ * @param consecutiveGoodReviews  连续 R≥3 次数（用于子卡是否升入稳定档判断；亦用作强标记自动清除阈值）
+ * @param isReinforced            强标记（Sprint 2 Task 2.1）：加强卡回考再失败 → true；
+ *                                连续 3 次评 ≥ 3 自动清除。详 RFC §9.3 D-S2-2 补充第 5 条。
  */
 @Entity(
     tableName = "sub_card_states",
@@ -47,5 +49,6 @@ data class SubCardStateEntity(
     val nextReviewTime: Long,
     val totalReviews: Int,
     val lapses: Int,
-    val consecutiveGoodReviews: Int = 0
+    val consecutiveGoodReviews: Int = 0,
+    val isReinforced: Boolean = false
 )

@@ -356,6 +356,49 @@ Sprint 4：图谱 + 阶段切换
   - **cursor_F 持久化**：需建 `review_session_progress` 表保存中途进度（详情 Task 2.1 细化）
   - **未实装卡型 fallback**：Sprint 2 内 C4/C5/C6 UI 未做时，路由器跳过这些 cardType（不降级到 C1）
 
+- **D-S2-2 补充：状态机细化（2026-05-20 二次拍板）**
+  
+  以下五条细化原则是 Task 2.1 的实现底稿，状态机绕不开：
+  
+  1. **默写形式：按 InputMode 自动二选一**
+     - 沿用用户在 Settings 已选的 InputMode（TracingCanvas 手写 / 纸笔自评）。
+     - 全程默写沿用同一模式，不每张卡当场再问，零打扰。
+     - 切换 InputMode 走设置页，不在路由器内提供切换入口。
+  
+  2. **加强卡回考时机：该公式进默写前回考**（不是会话末尾统一回考）
+     - 公式 A 的所有 due 卡都过了 → **先回考 A 的加强卡** → 才进 A 的默写。
+     - 距离首次错题最近、生动；默写动机明确。
+     - 回考评分 ≥ 3：加强卡标记清除（仅会话内）。
+     - 回考评分 = 1：**升级为强标记**（见下文第 5 条）。
+  
+  3. **blocked（默写错 3 次）双轨出口**
+     - **手动重试**：FormulaDetail（信息展示页）顶部显示红色 banner「该公式默写被阻断」+ 按钮「再试一次」→ 跳回路由器进入该公式的默写状态。
+     - **下次复习自动重新拉起**：下一次复习会话开始时，blocked 公式自动回到默写阶段（路由器读 `phase_status = blocked` 的公式列表，跳过其他 due 卡的轮转，先把 blocked 的默写消化掉）。
+     - blocked 状态在 `ReviewSessionProgressEntity` 持久化（跨会话不清）。
+  
+  4. **跨会话恢复：同日 cursor 续上，跨日重开**
+     - 用户中途退出复习 Tab → 进度持久化到 `ReviewSessionProgressEntity`。
+     - 同一**自然日**内再进复习 Tab → 从 cursor_F 接着考、加强标记保留、回合数继续累计。
+     - 跨日（次日及之后）再进复习 Tab → 视为新会话：重新拉 due 列表、cursor_F 重置、加强卡标记清零（强标记保留，因为强标记是跨会话的）。
+     - "自然日"按设备本地 0 点切分；可结合 Settings 已有的"刷新点"配置（默认 4 AM）。
+  
+  5. **强标记（reinforcement flag）—— 加强卡的跨会话升级版**
+     
+     - **触发**：加强卡回考依然评 1 → 在 `SubCardStateEntity` 上置 `isReinforced = true`（或更精细的 `reinforcedAt: Long` 时间戳）。
+     - **可见性**：FormulaDetail 信息展示页该子卡 chip 旁加 ⚠️ 标识或独立 banner，让用户感知到「这张子卡之前死磕都没过」。
+     - **复习加强（双重）**：
+       - **FSRS 层**：被打强标记时 `stability ×= 0.5`（沿用 `SprintModeManager.halveStabilityAbove` 的成熟交互，单独包一个 `applyReinforcement` 方法，避免和冲刺模式耦合）。
+       - **路由器层**：同 due 时间下，强标记卡在每轮抽样中**优先排前**（先消化"老大难"再走新卡）。
+     - **消除**：连续 3 次评分 ≥ 3 → 自动清除（在 `SubCardStateEntity` 加一个 `consecutiveGoodCount` 计数字段，评 1 时归零）。
+     - **与 leech 的关系**：两套机制并存独立。leech 看 `lapses` 累积（≥ 4）；强标记看"加强卡回考再失败"这个特定行为。同时挂 leech + 强标记的卡 → UI 上两个标识都显示，路由器按强标记规则优先。
+
+  > 三层标记总览：
+  > | 标记 | 触发 | 范围 | 消除 | 复习加强 |
+  > |---|---|---|---|---|
+  > | 加强卡 | 会话内 round_lapses ≥ 3 | 当次会话 | 会话结束自动清 | 该公式默写前回考 |
+  > | **强标记** | 回考再评 1 | 跨会话持久化 | 连续 3 次评 ≥ 3 自动清 | stability ×0.5 + 路由同 due 优先 |
+  > | leech | 历史 lapses ≥ 4 | 跨会话累积 | （现有逻辑） | Memory Tab 红色染色 |
+
 - **D-S2-3 母卡 vs 子卡 FSRS 数据写入** → **B：子卡为准，母卡 deprecated**
   - 用户评分时**只写 `sub_card_states`** 表；`study_states` 表保留但**不再由 ReviewViewModel 更新**
   - **派生策略**（Sprint 2 内必须重写）：

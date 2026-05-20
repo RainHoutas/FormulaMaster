@@ -29,7 +29,7 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         SubCardStateEntity::class,
         ErrorReportEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -70,6 +70,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 1 Task 1.6：v6 → v7 新增 error_reports 表
                     //   - 错题反向链路记录；createdAt 索引便于错题本按时间倒序展示
                     //   - 写入由 ErrorReportProcessor 统一触发（同步 SubCardState 砍半 + 推次日）
+                    // 学习流程重构 Sprint 2 Task 2.1：v7 → v8 SubCardStateEntity 加 isReinforced 字段
+                    //   - 强标记（加强卡回考再失败的跨会话标记），详 RFC §9.3 D-S2-2 补充第 5 条
+                    //   - destructiveMigration 重置；旧 FSRS 进度由 seedIfEmpty 重新铺底
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。

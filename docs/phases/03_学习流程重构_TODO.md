@@ -192,14 +192,32 @@ related:
 
 ### Task 列表（2026-05-20 细化）
 
-- [ ] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2
+- [/] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2
   
-  - 新建 `domain/ReviewRouter.kt`：会话状态机（公式列表 + 每公式 cursor_F + round_lapses + 默写状态）
-  - 新建 `data/local/entity/ReviewSessionProgressEntity.kt` 持久化 cursor / 加强标记 / 默写状态（跨会话恢复）
-  - "加强卡"标记：单卡 round_lapses ≥ 3 → 跳过 + 全公式毕业时回考一次
-  - 默写状态机：通过 / hint1（错 1）/ hint2（错 2）/ blocked（错 3）
-  - C4/C5/C6 cardType fallback：Sprint 2 期间路由器跳过这些卡型
-  - **Done 标准**：单测覆盖轮转 / 粘卡 / 加强标记 / 默写状态机的核心规则，BUILD SUCCESSFUL
+  **Task 2.1a 纯状态机 ✅ 完成（2026-05-20）**
+  - ✅ 新建 `domain/ReviewRouter.kt`（pure Kotlin 状态机，无 Room 依赖）
+    - `FormulaContext` / `RouterState` / `Step` / `NextAction` / `Input` / `Event` 完整 sealed 层
+    - 跨公式轮转 + 粘卡 + 加强卡入集合 + 加强卡回考（**该公式进默写前**回考，per RFC §9.3 D-S2-2 补充第 2 条）
+    - 默写状态机 hint0→1→2→Blocked（错 3 次外发 FormulaBlocked）
+    - C4/C5/C6 fallback：在调用方构造 dueCards 时剔除（路由器不感知）
+  - ✅ `SubCardStateEntity` 加 `isReinforced: Boolean = false` 字段（强标记持久化）
+  - ✅ AppDatabase v7→v8（destructiveMigration，与 Sprint 1 风格一致）
+  - ✅ 单测 `ReviewRouterTest`（21 case）覆盖：start / 轮转 / 粘卡 / 加强卡入集合 / 回考时机 / 回考评 1 升级 / 回考评 3 清除 / 默写 hint 升级 / Blocked / Graduated / 终态混合 / 边界异常
+  - ✅ 全量单测 193→214，BUILD SUCCESSFUL
+  
+  **Task 2.1b 持久化 + ViewModel 接线 ⏳ 待办**
+  - 新建 `data/local/entity/ReviewSessionProgressEntity.kt`（含 sessionDate / formulaContextsJson / currentFormulaIndex），用于同日 cursor 恢复（跨日 FSRS 重新拉 due）
+  - 新建 `data/local/dao/ReviewSessionProgressDao.kt`
+  - `ReviewViewModel` 改造：
+    - 启动时按"同日续 / 跨日重开"加载/丢弃 ReviewSessionProgressEntity
+    - 每次 `Input.Rate` 后处理 `Event.CardRated` → 走 FSRS → 写 sub_card_states
+    - 处理 `Event.ReinforcementUpgraded` → 写 `isReinforced=true` + stability ×0.5
+    - 处理 `Event.ReinforcementCleared` → 不写库（标记仅会话内）
+    - 处理 `Event.FormulaGraduated / FormulaBlocked` → 写 ReviewSessionProgressEntity
+    - 处理 `consecutiveGoodReviews >= 3 且 isReinforced` → 自动清 isReinforced（强标记消除规则）
+  - blocked banner UI 接入 FormulaDetailScreen（顶部红条 + 「再试一次」按钮 → 跳路由器直接 Dictating）
+  - Memory Tab 复习 Tab 调用 `ReviewRouter.start` 时按 isReinforced 优先排序 dueCards
+  - **Done 标准**：真机三轮回归（同日续接 / 跨日重开 / blocked 恢复路径），BUILD SUCCESSFUL
 
 - [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
   
