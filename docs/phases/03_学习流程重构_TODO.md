@@ -201,7 +201,7 @@ related:
 
 ## Sprint 3：互动深化（C4/C5/C6）+ 错题反向 UI（占位）
 
-### Task 占位（启动前答 D12/D13）
+### Task 占位（D12=B / D13=C 已答 ✅ 2026-05-20）
 
 - [ ] Task 3.1 C4 推导卡（5s 推导挑战 + 自评三档：不会/查看了/推出来了）
 - [ ] Task 3.2 C5 易混辨析卡（A/B 选 + 反馈差异说明）
@@ -214,7 +214,7 @@ related:
 
 ## Sprint 4：公式族图谱 + 阶段切换 UI（占位）
 
-### Task 占位（启动前答 D14/D15）
+### Task 占位（D14=B / D15=A 已答 ✅ 2026-05-20）
 
 - [ ] Task 4.1 公式族图谱（章节内可选视图）
 - [ ] Task 4.2 `StudyPhase` enum + `AppPreference.studyPhase` 持久化
