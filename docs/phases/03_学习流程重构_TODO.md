@@ -213,6 +213,12 @@ related:
   - ✅ 新建 `data/local/dao/ReviewSessionProgressDao.kt`（upsert / clearSession / observeCurrent）
   - ✅ 新建 `data/repository/ReviewSessionProgressCodec.kt`：扁平 DTO 绕开 DictationState sealed 序列化；前向兼容（未知 CardType code 静默剔除）；JSON 损坏返回 null 不闪退
   - ✅ `ReviewSessionProgressCodecTest` 19 case（NotStarted/InProgress(0/1/2) 区分 / PhaseStatus 四枚举 / Set & Map round-trip / 未知 code 剔除 / 损坏 JSON / cursor 矫正 / validate 越界）+ `ReviewSessionProgressDaoTest` 8 case（225→252 全绿）
+  - ✅ 新建 `data/repository/ReviewSessionRepository.kt`：粘合层，把 3 个 DAO + Codec 包成会话生命周期 API
+    - `computeSessionDateMs(currentTimeMs, refreshHour)` 纯计算"会话锚"，跨刷新点不同锚
+    - `startOrResume` 三态返回（Fresh / Resumed / FallbackToFresh），含损坏 JSON 兜底
+    - **修复**：resume 时用最新 `blocked_formulas` 覆盖 `wasPreviouslyBlocked`（避免持久化快照与表错位）
+    - `markFormulaBlocked` / `clearFormulaBlocked` / `endSession` 直白 API 供 ViewModel 调用
+  - ✅ `ReviewSessionRepositoryTest` 15 case（fake DAO 跳过 Robolectric；含会话日切边界 / 三态决策 / 跨日覆盖 / blocked 透传 / E2E 续接，252→267 全绿）
   - ⏳ `ReviewViewModel` 改造：
     - 启动时按"同日续 / 跨日重开"加载/丢弃 ReviewSessionProgressEntity
     - 每次 `Input.Rate` 后处理 `Event.CardRated` → 走 FSRS → 写 sub_card_states
