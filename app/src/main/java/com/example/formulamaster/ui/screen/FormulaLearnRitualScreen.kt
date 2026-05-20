@@ -47,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -607,26 +608,30 @@ private fun Step7ConsolidationMini(
         )
         Spacer(Modifier.height(8.dp))
 
-        when (current) {
-            CardType.C1_Recognition -> MiniC1Card(latex = latex, onPass = onPass, onFail = onFail)
-            CardType.C2_Cloze -> MiniC2Card(
-                items = clozeItems,
-                preconditions = preconditions,
-                fullLatex = latex,
-                onPass = onPass,
-                onFail = onFail
-            )
-            CardType.C3_Precondition -> MiniC3Card(
-                purpose = purpose,
-                preconditions = preconditions,
-                latex = latex,
-                onPass = onPass,
-                onFail = onFail
-            )
-            else -> {
-                // C4/C5/C6 在 Sprint 2 暂不参与 mini-card 序列
-                Text("此卡型 mini 形态暂未实装，自动通过。", style = MaterialTheme.typography.bodySmall)
-                LaunchedEffect(current) { onPass() }
+        // Bug 修复：用 attemptCount 作为 key 强制每次评分后重新组装 mini-card，
+        // 否则重做轮次进入同一卡型时，旧 remember 残留（C2 submitted=true 后按钮卡死）。
+        key(state.attemptCount) {
+            when (current) {
+                CardType.C1_Recognition -> MiniC1Card(latex = latex, onPass = onPass, onFail = onFail)
+                CardType.C2_Cloze -> MiniC2Card(
+                    items = clozeItems,
+                    preconditions = preconditions,
+                    fullLatex = latex,
+                    onPass = onPass,
+                    onFail = onFail
+                )
+                CardType.C3_Precondition -> MiniC3Card(
+                    purpose = purpose,
+                    preconditions = preconditions,
+                    latex = latex,
+                    onPass = onPass,
+                    onFail = onFail
+                )
+                else -> {
+                    // C4/C5/C6 在 Sprint 2 暂不参与 mini-card 序列
+                    Text("此卡型 mini 形态暂未实装，自动通过。", style = MaterialTheme.typography.bodySmall)
+                    LaunchedEffect(current) { onPass() }
+                }
             }
         }
     }

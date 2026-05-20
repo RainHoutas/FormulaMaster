@@ -22,6 +22,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.data.AppContainer
+import com.example.formulamaster.data.local.entity.BlockedFormulaEntity
 import com.example.formulamaster.data.local.entity.SubCardStateEntity
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeParser
@@ -94,12 +96,23 @@ fun FormulaDetailScreen(
     val formula = item.formula
 
     // 直接订阅子卡 Flow（不进 ViewModel，因为只在本屏读，且 MemoryVM 暂不暴露子卡）
-    val subCardDao = remember(context) { AppContainer.appDatabase(context).subCardStateDao() }
+    val db = remember(context) { AppContainer.appDatabase(context) }
+    val subCardDao = remember(db) { db.subCardStateDao() }
+    val blockedDao = remember(db) { db.blockedFormulaDao() }
     val subCards by produceState<List<SubCardStateEntity>>(
         initialValue = emptyList(),
         key1 = formulaId
     ) {
         subCardDao.observeByFormulaId(formulaId).collect { value = it }
+    }
+
+    // Sprint 2 Task 2.1c：观察该公式是否处于 blocked 态（上次默写错 3 次），
+    // 显示顶部红色 banner + 手动重试入口
+    val blockedRecord by produceState<BlockedFormulaEntity?>(
+        initialValue = null,
+        key1 = formulaId
+    ) {
+        blockedDao.observeByFormulaId(formulaId).collect { value = it }
     }
 
     // 解析 JSON 字段（每次重组只做一次）
@@ -147,6 +160,15 @@ fun FormulaDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            // ── 默写被阻断的强提醒（Sprint 2 Task 2.1c）─────────────────────
+            blockedRecord?.let { record ->
+                BlockedBanner(
+                    blockedAtMs = record.blockedAt,
+                    onRetry = onStartRitual  // MVP：暂时复用「重做七步」入口；后续可单独接路由器默写入口
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
             // ── 顽固难点提示 ─────────────────────────────────────────────────
             if (item.lapses >= 4) {
                 LeechBanner(item.lapses, formula.tags)
@@ -341,6 +363,45 @@ private fun cardTypeLabel(ct: CardType): String = when (ct) {
     CardType.C4_Derivation     -> "C4 · 推导"
     CardType.C5_Discrimination -> "C5 · 易混辨析"
     CardType.C6_TypicalProblem -> "C6 · 题型反查"
+}
+
+/**
+ * Sprint 2 Task 2.1c：默写被阻断的强提醒红条。
+ *
+ * 当 blocked_formulas 表里有该公式记录时显示。点击「再试一次」走 [onRetry]
+ * （MVP 阶段复用「重做七步」入口；后续可换成单独的"直接进默写"路径）。
+ */
+@Composable
+private fun BlockedBanner(blockedAtMs: Long, onRetry: () -> Unit) {
+    val formattedTime = remember(blockedAtMs) {
+        Instant.ofEpochMilli(blockedAtMs)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = "⚠️ 默写被阻断 · $formattedTime",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = "上次默写连错 3 次，再试时请放慢节奏",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+            )
+            FilledTonalButton(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("再试一次")
+            }
+        }
+    }
 }
 
 @Composable

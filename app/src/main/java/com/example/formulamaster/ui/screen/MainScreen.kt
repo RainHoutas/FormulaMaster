@@ -184,7 +184,10 @@ fun MainScreen(navTarget: String? = null) {
                 )
             }
             composable(AppRoute.Review.route) {
-                ReviewScreen(contentPadding = innerPadding)
+                // Sprint 2 Task 2.1c：切换到路由驱动的新版复习屏。
+                // 旧 ReviewScreen + ReviewViewModel 暂保留作回退备份，
+                // Task 2.6 母卡 deprecated 完成后由用户决定是否删除。
+                RouterReviewScreen(contentPadding = innerPadding)
             }
             composable(AppRoute.Test.route) {
                 TestScreen(

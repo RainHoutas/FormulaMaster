@@ -68,7 +68,16 @@ data class Step7State(
     val retryDeck: List<CardType> = emptyList(),
     val currentIndex: Int = 0,
     val passed: Set<CardType> = emptySet(),
-    val isFinished: Boolean = false
+    val isFinished: Boolean = false,
+    /**
+     * Bug 修复：mini-card 的 remember 状态（C1 revealed / C2 selected & submitted / C3 倒计时）
+     * 需要在每次"切换到新一张卡（含重做）"时重置。仅靠 currentCard / currentIndex 做 key 不够，
+     * 因为重做轮次进来时 currentIndex 重回 0、pendingDeck 又是同一张卡的引用，equals 命中
+     * 旧 remember slot 导致状态残留 → 按钮卡死（最典型是 C2 submitted=true 后再也点不动）。
+     *
+     * 每次 [step7Pass] / [step7Fail] 都 +1，UI 用 `key(attemptCount)` 包 mini-card 强制重组。
+     */
+    val attemptCount: Int = 0
 ) {
     val currentCard: CardType? = pendingDeck.getOrNull(currentIndex)
     val isRoundEnd: Boolean = currentIndex >= pendingDeck.size
@@ -120,7 +129,8 @@ class FormulaLearnRitualViewModel(
             val newIndex = s.step7.currentIndex + 1
             s.copy(step7 = s.step7.copy(
                 currentIndex = newIndex,
-                passed = newPassed
+                passed = newPassed,
+                attemptCount = s.step7.attemptCount + 1
             ))
         }
         maybeStartNextRound()
@@ -132,7 +142,8 @@ class FormulaLearnRitualViewModel(
             val cur = s.step7.currentCard ?: return@update s
             s.copy(step7 = s.step7.copy(
                 currentIndex = s.step7.currentIndex + 1,
-                retryDeck = s.step7.retryDeck + cur
+                retryDeck = s.step7.retryDeck + cur,
+                attemptCount = s.step7.attemptCount + 1
             ))
         }
         maybeStartNextRound()
