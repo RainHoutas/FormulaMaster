@@ -209,8 +209,10 @@ related:
   - ✅ 新建 `data/local/entity/BlockedFormulaEntity.kt` + `data/local/dao/BlockedFormulaDao.kt`（公式级跨会话 blocked 状态）
   - ✅ AppDatabase v8→v9 挂表（CASCADE 删除 + REPLACE 策略）
   - ✅ `BlockedFormulaDaoTest` 8 case（217→225 全绿）
-  - ⏳ 新建 `data/local/entity/ReviewSessionProgressEntity.kt`（单行表，含 sessionDateMs + 序列化的 RouterState），用于**同日 cursor 续接**（跨日 FSRS 重新拉 due）。RouterState 内 DictationState 是 sealed，需 Gson 自定义反序列化或自定义 DTO
-  - ⏳ 新建 `data/local/dao/ReviewSessionProgressDao.kt`
+  - ✅ 新建 `data/local/entity/ReviewSessionProgressEntity.kt`（单行表，sessionDateMs + formulaContextsJson + currentFormulaIndex），AppDatabase v9→v10
+  - ✅ 新建 `data/local/dao/ReviewSessionProgressDao.kt`（upsert / clearSession / observeCurrent）
+  - ✅ 新建 `data/repository/ReviewSessionProgressCodec.kt`：扁平 DTO 绕开 DictationState sealed 序列化；前向兼容（未知 CardType code 静默剔除）；JSON 损坏返回 null 不闪退
+  - ✅ `ReviewSessionProgressCodecTest` 19 case（NotStarted/InProgress(0/1/2) 区分 / PhaseStatus 四枚举 / Set & Map round-trip / 未知 code 剔除 / 损坏 JSON / cursor 矫正 / validate 越界）+ `ReviewSessionProgressDaoTest` 8 case（225→252 全绿）
   - ⏳ `ReviewViewModel` 改造：
     - 启动时按"同日续 / 跨日重开"加载/丢弃 ReviewSessionProgressEntity
     - 每次 `Input.Rate` 后处理 `Event.CardRated` → 走 FSRS → 写 sub_card_states

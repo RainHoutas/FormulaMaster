@@ -10,6 +10,7 @@ import com.example.formulamaster.data.local.dao.FormulaDao
 import com.example.formulamaster.data.local.dao.FormulaSubjectMapDao
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
+import com.example.formulamaster.data.local.dao.ReviewSessionProgressDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.local.entity.BlockedFormulaEntity
@@ -18,6 +19,7 @@ import com.example.formulamaster.data.local.entity.FormulaEntity
 import com.example.formulamaster.data.local.entity.FormulaSubjectMapEntity
 import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
+import com.example.formulamaster.data.local.entity.ReviewSessionProgressEntity
 import com.example.formulamaster.data.local.entity.StudyStateEntity
 import com.example.formulamaster.data.local.entity.SubCardStateEntity
 
@@ -30,9 +32,10 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         FormulaSubjectMapEntity::class,
         SubCardStateEntity::class,
         ErrorReportEntity::class,
-        BlockedFormulaEntity::class
+        BlockedFormulaEntity::class,
+        ReviewSessionProgressEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun subCardStateDao(): SubCardStateDao
     abstract fun errorReportDao(): ErrorReportDao
     abstract fun blockedFormulaDao(): BlockedFormulaDao
+    abstract fun reviewSessionProgressDao(): ReviewSessionProgressDao
 
     companion object {
         @Volatile
@@ -80,6 +84,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 2 Task 2.1b：v8 → v9 新增 blocked_formulas 表
                     //   - 公式级跨会话 blocked 状态；UI 据此在默写界面顶部展示红色强提醒
                     //   - CASCADE 删除：FormulaEntity 删除时同步清理
+                    // 学习流程重构 Sprint 2 Task 2.1b：v9 → v10 新增 review_session_progress 单行表
+                    //   - 同日 cursor 续接（跨日由 ViewModel 比较 sessionDateMs 决定丢弃 / 续接）
+                    //   - 序列化由 ReviewSessionProgressCodec 处理（扁平 DTO 绕开 DictationState sealed）
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。
