@@ -42,6 +42,7 @@ import com.example.formulamaster.ui.viewmodel.MemoryViewModel
 fun FormulaDetailScreen(
     formulaId: String,
     onBack: () -> Unit,
+    onStartRitual: () -> Unit = {},
     viewModel: MemoryViewModel = viewModel(factory = MemoryViewModel.factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -84,9 +85,10 @@ fun FormulaDetailScreen(
             FilledTonalButton(
                 onClick = {
                     if (!isActivated) {
-                        viewModel.activateFormula(formula.formulaId)
+                        // Sprint 2 Task 2.5：「开始学习」不再直接激活公式，
+                        // 改为跳转到七步学习仪式；结业时由 ViewModel 初始化 6 子卡 + 母卡。
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onBack()
+                        onStartRitual()
                     }
                 },
                 enabled = !isActivated,
@@ -95,7 +97,7 @@ fun FormulaDetailScreen(
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Text(if (isActivated) "复习中" else "标记为开始学习")
+                Text(if (isActivated) "复习中" else "开始学习")
             }
         }
     ) { innerPadding ->

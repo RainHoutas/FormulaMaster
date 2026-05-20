@@ -46,6 +46,11 @@ sealed class AppRoute(val route: String) {
     data object FormulaDetail : AppRoute("formula_detail/{formulaId}") {
         fun createRoute(formulaId: String) = "formula_detail/$formulaId"
     }
+
+    /** Sprint 2 Task 2.5：七步学习仪式（formula_detail → 开始学习按钮进入） */
+    data object FormulaLearnRitual : AppRoute("formula_learn_ritual/{formulaId}") {
+        fun createRoute(formulaId: String) = "formula_learn_ritual/$formulaId"
+    }
 }
 
 // ── Tab 元数据 ─────────────────────────────────────────────────────────────────
@@ -222,7 +227,30 @@ fun MainScreen(navTarget: String? = null) {
                 val formulaId = backStackEntry.arguments?.getString("formulaId") ?: return@composable
                 FormulaDetailScreen(
                     formulaId = formulaId,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onStartRitual = {
+                        navController.navigate(AppRoute.FormulaLearnRitual.createRoute(formulaId))
+                    }
+                )
+            }
+
+            // ── Sprint 2 Task 2.5：七步学习仪式 ──────────────────────────────
+            composable(
+                route = AppRoute.FormulaLearnRitual.route,
+                arguments = listOf(navArgument("formulaId") { type = NavType.StringType }),
+                enterTransition    = { slideInHorizontally(initialOffsetX = { it }) },
+                exitTransition     = { slideOutHorizontally(targetOffsetX = { it }) },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+                popExitTransition  = { slideOutHorizontally(targetOffsetX = { it }) }
+            ) { backStackEntry ->
+                val formulaId = backStackEntry.arguments?.getString("formulaId") ?: return@composable
+                FormulaLearnRitualScreen(
+                    formulaId = formulaId,
+                    onBack = { navController.popBackStack() },
+                    onFinishToMemory = {
+                        // 仪式完成后回 Memory Tab（清除 FormulaDetail / Ritual 两层栈）
+                        navController.popBackStack(AppRoute.Memory.route, inclusive = false)
+                    }
                 )
             }
         }

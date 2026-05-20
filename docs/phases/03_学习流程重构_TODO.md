@@ -56,7 +56,8 @@ related:
 
 ### Task 列表（8 个）
 
-- [ ] **Task 1.1** `UseScene` + `KaoyanSubject` enum + Onboarding 加"考数几"页
+- [x] **Task 1.1** `UseScene` + `KaoyanSubject` enum + Onboarding 加"考数几"页
+  
   - `domain/UseScene.kt`：`KaoyanMath`（默认）/ `Gaokao`（占位）/ `SelfStudy`（占位）
   - `domain/KaoyanSubject.kt`：`Type1` / `Type2` / `Type3`（默认 `Type1`）+ displayName + description
   - `AppPreference.AppSettings` 加 `useScene` + `kaoyanSubject` 字段 + DataStore key + setter
@@ -64,7 +65,8 @@ related:
   - `OnboardingViewModel.completeAndPersist` 加 `kaoyanSubject` 参数
   - **Done 标准**：BUILD SUCCESSFUL；切换 kaoyanSubject 重启保留；Onboarding 三选一可用
 
-- [ ] **Task 1.2** `FormulaEntity` 字段扩展（9 → 18+）+ `derivationSteps` 重写
+- [x] **Task 1.2** `FormulaEntity` 字段扩展（9 → 18+）+ `derivationSteps` 重写
+  
   - 新增字段：
     - `purpose: String`（**一句话讲这公式干啥用**，C1/C3 卡用）
     - `preconditions: String`（JSON 数组）
@@ -80,7 +82,8 @@ related:
   - `AppDatabase` v3 → v4，`fallbackToDestructiveMigration(dropAllTables=true)`
   - **Done 标准**：BUILD SUCCESSFUL；现 6 条种子能正常预加载；新字段空值不崩；DerivationStep 反序列化单测通过
 
-- [ ] **Task 1.3** `FormulaSubjectMap` 多对多关系表 + 查询过滤
+- [x] **Task 1.3** `FormulaSubjectMap` 多对多关系表 + 查询过滤
+  
   - 新建 `data/local/entity/FormulaSubjectMapEntity.kt`：复合主键 `(formulaId, subjectType)`，外键级联
   - 新建 `FormulaSubjectMapDao` + `AppDatabase` 注册表
   - `FormulaDao` 加查询 `getByKaoyanSubject(type: String)` 用 JOIN 过滤
@@ -88,14 +91,16 @@ related:
   - 现有 `MemoryViewModel` / `ReviewViewModel` 改用过滤后 Flow
   - **Done 标准**：BUILD SUCCESSFUL；切换 kaoyanSubject 后列表立即过滤；DAO 单测覆盖三种 subject 各自过滤结果
 
-- [ ] **Task 1.4** `clozeData` schema 加权升级
+- [x] **Task 1.4** `clozeData` schema 加权升级
+  
   - `ClozeItem` 加 `weight: Int = 1` + `mustBlank: Boolean = false`
   - `ClozeParser.parse` 兼容旧 JSON（缺字段用默认值）
   - 新增 `ClozeParser.weightedSample(items, n)`：按 `weight × (1 + 用户最近错次)` 加权抽样
   - 新增 `ClozeParser.minimalSample(items)`：抽 1 个**公式本体**位置作为「最小填空预热」（不是条件关键词，对应用户拍板修订）
   - **Done 标准**：BUILD SUCCESSFUL；ClozeParser 单测覆盖：旧格式兼容 / 加权分布 / mustBlank 必入选 / minimalSample 抽公式本体而非条件
 
-- [ ] **Task 1.5** `SubCardStateEntity` + DAO（D10=A 落地）
+- [x] **Task 1.5** `SubCardStateEntity` + DAO（D10=A 落地）
+  
   - `domain/CardType.kt` enum：`C1_Recognition` / `C2_Cloze` / `C3_Precondition` / `C4_Derivation` / `C5_Discrimination` / `C6_TypicalProblem`
   - 新建 `data/local/entity/SubCardStateEntity.kt`：
     - 复合主键 `(formulaId, cardType)`
@@ -106,7 +111,8 @@ related:
   - `ReviewScheduler.calculate` 签名扩展：接受 `SubCardStateEntity` 而非 `StudyStateEntity`（保留旧重载兼容现有 UI）
   - **Done 标准**：BUILD SUCCESSFUL；30 公式 × 6 卡 = 180 条记录可建可查；SubCardStateDao 单测全绿
 
-- [ ] **Task 1.6** `ErrorReportEntity` + 反向链路处理器（D6=C 落地）
+- [x] **Task 1.6** `ErrorReportEntity` + 反向链路处理器（D6=C 落地）
+  
   - 新建 `data/local/entity/ErrorReportEntity.kt`：
     - `id` (auto) / `createdAt`
     - `subject: String`（chip：高数 / 线代 / 概率）
@@ -122,7 +128,8 @@ related:
     - 写入 `lapses+1`
   - **Done 标准**：BUILD SUCCESSFUL；ErrorReportProcessor 单测覆盖：插入 → N 个 formulaId 的 6 张子卡全部被推到次日刷新整点 + S 调整正确
 
-- [ ] **Task 1.7** 30 公式 MVP 内容标注（D8 + D11 联动）
+- [x] **Task 1.7** 30 公式 MVP 内容标注（D8 + D11 联动）
+  
   - 范围细化（按 D8=C + D11=C）：
     - **三科共有约 15-18 公式**（标 `["1","2","3"]`）：极限基础 5 / 微分中值 5 / 基础泰勒 5 / 基础线代 3
     - **数一/数三共有不在数二**约 5（标 `["1","3"]`）：分布族（正态/卡方/t/F/泊松）
@@ -135,6 +142,7 @@ related:
   - **Done 标准**：30 公式 MVP 全字段填完，预加载无报错；三种 kaoyanSubject 各自能查到合理数量的公式
 
 - [x] **Task 1.8** 单测扩充 + Scene 守卫 ✅（2026-05-20）
+  
   - 至少新增 30 条单测覆盖 1.1-1.6 的纯函数路径 → **实际 +32**
     - ReviewSchedulerTest 子卡重载 +8
     - KaoyanSubjectTest（新）+5
@@ -161,6 +169,7 @@ related:
 **完成情况**：Task 1.1 ~ 1.8 全部 ✅，193/193 单测绿。
 
 **关键产物**：
+
 - 数据基础：`UseScene` + `KaoyanSubject` 双 enum + Onboarding 加"考数几"页
 - Schema：`FormulaEntity` 9→18 字段；`DerivationStep` 对象数组格式；`FormulaSubjectMap` 多对多
 - 6 子卡矩阵：`CardType` enum + `SubCardStateEntity` + `SubCardStateDao`（独立 FSRS 状态）
@@ -169,6 +178,7 @@ related:
 - 内容：30 公式 MVP（21 三科共有 + 5 数一/三 + 4 数一专属）
 
 **留作 Sprint 2 起点的债**：
+
 - Scene 守卫尚未在 4 处调用点落地（见改进点池 `[架构] 冲刺模式 Scene 守卫`），第二个 Scene 实装前必做
 - Sprint 2 起点：D12/D13/D14/D15 决策点确认 → Task 2.5 七步学习仪式 UI 实装
 
@@ -183,6 +193,7 @@ related:
 ### Task 列表（2026-05-20 细化）
 
 - [ ] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2
+  
   - 新建 `domain/ReviewRouter.kt`：会话状态机（公式列表 + 每公式 cursor_F + round_lapses + 默写状态）
   - 新建 `data/local/entity/ReviewSessionProgressEntity.kt` 持久化 cursor / 加强标记 / 默写状态（跨会话恢复）
   - "加强卡"标记：单卡 round_lapses ≥ 3 → 跳过 + 全公式毕业时回考一次
@@ -191,16 +202,20 @@ related:
   - **Done 标准**：单测覆盖轮转 / 粘卡 / 加强标记 / 默写状态机的核心规则，BUILD SUCCESSFUL
 
 - [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
+  
   - 用户先看公式名 → 点"看答案"露出完整公式 + 条件 + 用途 → 评分 1/2/3/4
   - 视觉细节做时再问
 
 - [ ] **Task 2.3 C2 加权 cloze 卡** — 复用 Sprint 1 Task 1.4 的 `weightedSample`
+  
   - 每次抽 2-3 空（具体数量做时定）+ chip 多选填入（禁文字输入）
 
 - [ ] **Task 2.4 C3 条件先行卡**（2 秒强制展示条件 + 用途）
+  
   - 进入卡 2 秒倒计时不可点击 → 展示完整公式后才能评分
 
 - [ ] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）
+  
   1. 条件 + 用途先行卡（2s 强制展示）
   2. 拆块讲解（可滑动）
   3. 推导链静态展示（DerivationStep 渲染）
@@ -210,6 +225,7 @@ related:
   7. **巩固迷你卡序列**：3 张 C1+C2+C3 混合 mini-card；错答记下，每轮做完后回头重做错的，**全 3 张通过才结业**；结业后 6 张 SubCardStateEntity 初始化 `stability=1.0, nextReviewTime=次日刷新整点`
 
 - [ ] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3
+  
   - **ReviewViewModel**：`submitReview` 仅写 `sub_card_states`，删除 `study_states` 更新逻辑
   - **MemoryViewModel + MemoryScreen**：bucket 算法改为读 `sub_card_states` 聚合
     - `learningState` 派生：`MIN(stability) < 1.0 → 1`；`AVG > 30 → 3`；其余 `2`
@@ -225,6 +241,7 @@ related:
 - [ ] ~~Task 2.7 巩固阶段触发~~ **拒绝（2026-05-19）**：违反 RFC §3.5.1「APP 不做同日二次推送」恒久立场；同会话内的巩固由 Task 2.5 第 7 步承担，跨日走标准 FSRS
 
 - [ ] **Task 2.8 单测 + 真机验收**
+  
   - Memory Tab / Sprint Mode 真机三轮回归
   - 路由器单测 ≥ 15 case 覆盖核心状态机
   - 七步学习仪式真机闭环验收
@@ -285,9 +302,11 @@ related:
 ## Sprint 完成记录（待填）
 
 ### Sprint 1 总结
+
 （待 Sprint 1 收尾后填写）
 
 ### Sprint 2/3/4 总结
+
 （占位）
 
 ---
