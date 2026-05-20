@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.formulamaster.data.local.dao.BlockedFormulaDao
 import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.FormulaDao
 import com.example.formulamaster.data.local.dao.FormulaSubjectMapDao
@@ -11,6 +12,7 @@ import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
+import com.example.formulamaster.data.local.entity.BlockedFormulaEntity
 import com.example.formulamaster.data.local.entity.ErrorReportEntity
 import com.example.formulamaster.data.local.entity.FormulaEntity
 import com.example.formulamaster.data.local.entity.FormulaSubjectMapEntity
@@ -27,9 +29,10 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         OcrFeedbackEntity::class,
         FormulaSubjectMapEntity::class,
         SubCardStateEntity::class,
-        ErrorReportEntity::class
+        ErrorReportEntity::class,
+        BlockedFormulaEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun formulaSubjectMapDao(): FormulaSubjectMapDao
     abstract fun subCardStateDao(): SubCardStateDao
     abstract fun errorReportDao(): ErrorReportDao
+    abstract fun blockedFormulaDao(): BlockedFormulaDao
 
     companion object {
         @Volatile
@@ -73,6 +77,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 2 Task 2.1：v7 → v8 SubCardStateEntity 加 isReinforced 字段
                     //   - 强标记（加强卡回考再失败的跨会话标记），详 RFC §9.3 D-S2-2 补充第 5 条
                     //   - destructiveMigration 重置；旧 FSRS 进度由 seedIfEmpty 重新铺底
+                    // 学习流程重构 Sprint 2 Task 2.1b：v8 → v9 新增 blocked_formulas 表
+                    //   - 公式级跨会话 blocked 状态；UI 据此在默写界面顶部展示红色强提醒
+                    //   - CASCADE 删除：FormulaEntity 删除时同步清理
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。
