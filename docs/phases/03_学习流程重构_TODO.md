@@ -174,19 +174,33 @@ related:
 
 ---
 
-## Sprint 2：核心多卡型（C1/C2/C3）+ 复习路由器（占位）
+## Sprint 2：七步学习仪式 + 复习路由器 + C1/C2/C3 + 子卡 FSRS 切换
 
 ### 主题
 
-把 Review Tab 从单一卡型升级为按 retrievability 自适应抽样的三类卡型；FormulaDetail 扩为完整**七步**学习仪式（2026-05-19 修订）。
+把整个学习—复习链路从"母卡单一节奏"升级到"子卡六维 + 七步首次激活 + 轮转粘卡复习"，并彻底切到子卡为准的 FSRS 数据源（D-S2-1=B / D-S2-2=D / D-S2-3=B，详 RFC §9.3）。
 
-### Task 占位（待 Sprint 1 收尾后细化）
+### Task 列表（2026-05-20 细化）
 
-- [ ] Task 2.1 复习路由器（按各 SubCard R 选 C1/C2/C3）
-- [ ] Task 2.2 C1 识别卡（公式名 → 完整公式 + 条件 + 用途）
-- [ ] Task 2.3 C2 加权 cloze（按 1.4 抽样多挖空）
-- [ ] Task 2.4 C3 条件先行卡（2 秒强制展示**条件 + 用途**）
-- [ ] Task 2.5 FormulaDetail 重构：七步学习仪式（2026-05-19 由六步扩为七步）
+- [ ] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2
+  - 新建 `domain/ReviewRouter.kt`：会话状态机（公式列表 + 每公式 cursor_F + round_lapses + 默写状态）
+  - 新建 `data/local/entity/ReviewSessionProgressEntity.kt` 持久化 cursor / 加强标记 / 默写状态（跨会话恢复）
+  - "加强卡"标记：单卡 round_lapses ≥ 3 → 跳过 + 全公式毕业时回考一次
+  - 默写状态机：通过 / hint1（错 1）/ hint2（错 2）/ blocked（错 3）
+  - C4/C5/C6 cardType fallback：Sprint 2 期间路由器跳过这些卡型
+  - **Done 标准**：单测覆盖轮转 / 粘卡 / 加强标记 / 默写状态机的核心规则，BUILD SUCCESSFUL
+
+- [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
+  - 用户先看公式名 → 点"看答案"露出完整公式 + 条件 + 用途 → 评分 1/2/3/4
+  - 视觉细节做时再问
+
+- [ ] **Task 2.3 C2 加权 cloze 卡** — 复用 Sprint 1 Task 1.4 的 `weightedSample`
+  - 每次抽 2-3 空（具体数量做时定）+ chip 多选填入（禁文字输入）
+
+- [ ] **Task 2.4 C3 条件先行卡**（2 秒强制展示条件 + 用途）
+  - 进入卡 2 秒倒计时不可点击 → 展示完整公式后才能评分
+
+- [ ] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）
   1. 条件 + 用途先行卡（2s 强制展示）
   2. 拆块讲解（可滑动）
   3. 推导链静态展示（DerivationStep 渲染）
@@ -194,8 +208,26 @@ related:
   5. Worked Example × 2（看例，只读）
   6. 最小填空预热（**挖公式本体**一处）
   7. **巩固迷你卡序列**：3 张 C1+C2+C3 混合 mini-card；错答记下，每轮做完后回头重做错的，**全 3 张通过才结业**；结业后 6 张 SubCardStateEntity 初始化 `stability=1.0, nextReviewTime=次日刷新整点`
-- [ ] ~~Task 2.6 巩固阶段触发（学习后立即"识别 + 单填空"，同日 10m/30m/1d 短间隔）~~ **拒绝（2026-05-19）**：违反 RFC §3.5.1「APP 不做同日二次推送」恒久立场；同会话内的巩固由 Task 2.5 第 7 步承担，跨日走标准 FSRS
-- [ ] Task 2.7 单测 + 真机验收
+
+- [ ] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3
+  - **ReviewViewModel**：`submitReview` 仅写 `sub_card_states`，删除 `study_states` 更新逻辑
+  - **MemoryViewModel + MemoryScreen**：bucket 算法改为读 `sub_card_states` 聚合
+    - `learningState` 派生：`MIN(stability) < 1.0 → 1`；`AVG > 30 → 3`；其余 `2`
+    - `nextReviewTime` 派生：`MIN(sub_cards.nextReviewTime)`
+    - `lapses` 派生：`SUM(sub_cards.lapses)`
+    - `stability` 派生：`AVG(sub_cards.stability)`
+  - **SprintModeManager**：`applyIfNeeded` / `halveStabilityAbove` / `resetMasteredReviewTime` 迁到 `SubCardStateDao`
+  - **DailyReminderWorker**：改读 `MIN(sub_card_states.nextReviewTime)`
+  - **TestViewModel**：测试模式默认评 `c1` 子卡（识别），后续 Sprint 用户可选
+  - 旧 `StudyStateDao` 标 `@Deprecated`（保留 entity / 不再写）
+  - **Done 标准**：受影响测试全部迁移并绿；Memory Tab + Sprint Mode + 通知三处真机回归无误
+
+- [ ] ~~Task 2.7 巩固阶段触发~~ **拒绝（2026-05-19）**：违反 RFC §3.5.1「APP 不做同日二次推送」恒久立场；同会话内的巩固由 Task 2.5 第 7 步承担，跨日走标准 FSRS
+
+- [ ] **Task 2.8 单测 + 真机验收**
+  - Memory Tab / Sprint Mode 真机三轮回归
+  - 路由器单测 ≥ 15 case 覆盖核心状态机
+  - 七步学习仪式真机闭环验收
 
 ---
 

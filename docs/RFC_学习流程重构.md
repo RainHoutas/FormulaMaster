@@ -337,6 +337,40 @@ Sprint 4：图谱 + 阶段切换
   - 设计动机：主路径心智清晰，但仍留纠错口；防止误操作导致几百条 study_states 被重置
   - 实装注意：重置时需在 ReviewLog 写 `phase_reset` 类型记录，便于事后回溯
 
+### 9.3 Sprint 2 启动决策 ✅ 已答（2026-05-20）
+
+- **D-S2-1 Sprint 2 范围** → **B：全量 2.1-2.5**
+  - 一次性闭环：七步学习仪式（首次激活 6 子卡）+ 复习路由器 + C1/C2/C3 三类卡型
+  - 工期估算 8-12 天（叠加 D-S2-3 的子卡为准重写）
+
+- **D-S2-2 复习路由器策略** → **D：轮转 + 粘卡 + 默写收尾**（用户原创设计，2026-05-20）
+  - **轮询主循环**：每个公式持有 `cursor_F` 指向当前应考的子卡（按 c1→c2→c3→c4→c5→c6 顺序，跳过未 due）
+  - **粘卡机制**：评分 ≥ 3 → cursor_F 推进到下一张 due 卡；评分 = 1 → cursor_F 不动，下一轮继续考同一张
+  - **跨公式轮转**：每轮内逐个公式各考 1 张，循环到下一公式；不一次"考穷"单个公式的所有卡
+  - **加强标记**：单卡 `round_lapses ≥ 3` → 标记"加强卡"，cursor_F 暂时跳过进入下一张；**全公式毕业时**回头再考一次
+  - **默写收尾**：公式所有 due 卡均通过 → 进入默写阶段（手写完整公式，沿用 TracingCanvas / 纸笔自评 by InputMode）
+    - 错 1 次：下次重做加 hint 1（露第一块）
+    - 错 2 次：加 hint 2（露推导前两步）
+    - 错 3 次：停止默写，记 `phase_status = blocked`，待用户主动回顾后重试
+  - **会话结束条件**：所有公式均默写通过 / 标记 blocked
+  - **cursor_F 持久化**：需建 `review_session_progress` 表保存中途进度（详情 Task 2.1 细化）
+  - **未实装卡型 fallback**：Sprint 2 内 C4/C5/C6 UI 未做时，路由器跳过这些 cardType（不降级到 C1）
+
+- **D-S2-3 母卡 vs 子卡 FSRS 数据写入** → **B：子卡为准，母卡 deprecated**
+  - 用户评分时**只写 `sub_card_states`** 表；`study_states` 表保留但**不再由 ReviewViewModel 更新**
+  - **派生策略**（Sprint 2 内必须重写）：
+    - `learningState` → 6 子卡聚合：`MIN(stability) < 1.0 → 1（Learning）`；`AVG > 30 → 3（Mastered）`；其余 `2（Reviewing）`
+    - `lapses` 累计 → `SUM(sub_cards.lapses)`
+    - `nextReviewTime` → `MIN(sub_cards.nextReviewTime)`（最早到期的子卡决定推送时机）
+    - `stability` → `AVG(sub_cards.stability)`（用于 Sprint Mode 判定）
+  - **受影响代码**（必须 Sprint 2 内重写）：
+    - `MemoryViewModel` 改读聚合 + `MemoryScreen` bucket 算法
+    - `SprintModeManager.applyIfNeeded` 改操作 `sub_card_states`
+    - `DailyReminderWorker` 改读 `MIN(sub_card_states.nextReviewTime)`
+    - `TestViewModel` 测试模式评分写哪张子卡 → 默认 `c1`（识别），后续可由用户选
+    - 现有 StudyStateDao 方法（`halveStabilityAbove` / `resetMasteredReviewTime`）废弃，等价方法迁到 `SubCardStateDao`
+  - **风险预案**：Memory Tab 是核心 UI，重写时需附诊断角标 + 真机三轮验证
+
 ---
 
 ## 10. 验收标准（阶段全部 Sprint 完成后）
