@@ -192,7 +192,7 @@ related:
 
 ### Task 列表（2026-05-20 细化）
 
-- [/] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2
+- [x] **Task 2.1 复习路由器（轮转 + 粘卡 + 默写）** — RFC §9.3 D-S2-2 ✅ 完整收尾（2026-05-20 晚）
   
   **Task 2.1a 纯状态机 ✅ 完成（2026-05-20）**
   - ✅ 新建 `domain/ReviewRouter.kt`（pure Kotlin 状态机，无 Room 依赖）
@@ -229,9 +229,16 @@ related:
     - FormulaBlocked / FormulaGraduated 操作 blocked_formulas
     - processAll 多事件批处理顺序保证
   - ✅ Memory Tab dueCards 排序（已在 `RouterReviewViewModel.buildSessionInputs` 内实现：先按是否含强标记降序 → examWeight 降序 → formulaId 稳定）
-  - ⏳ ReviewScreen UI 切换到 RouterReviewViewModel（旧 VM 仍在，需要替换 ReviewScreen 调用方）
-  - ⏳ blocked banner UI 接入 FormulaDetailScreen（observeByFormulaId Flow → 顶部红条 + 「再试一次」按钮 → 跳路由器直接 Dictating）
-  - ⏳ 默写界面顶部红条（`NextAction.StartDictation.wasPreviouslyBlocked = true` 时渲染）
+  - ✅ 新建 `ui/screen/RouterReviewScreen.kt`：取代 ReviewScreen 接 RouterReviewViewModel；三态 ShowCard / StartDictation / SessionEnd 渲染；强标记 chip + 加强卡回考 chip + reveal 模式 + 1/2/3/4 评分
+  - ✅ MainScreen AppRoute.Review 切到 RouterReviewScreen（旧 ReviewScreen 暂留作回退备份，Task 2.6 后由用户决定删除）
+  - ✅ FormulaDetail 加 BlockedBanner（observeByFormulaId Flow + 阻断时间显示 + 「再试一次」按钮）
+  - ✅ 默写界面顶部红条（`wasPreviouslyBlocked` → 红色 Surface 强提醒）
+  - ✅ Step 7 bug 修复：mini-card `remember` 状态在重做轮次残留（C2 submitted=true 后按钮卡死）→ 加 `Step7State.attemptCount` 计数器 + UI 用 `key(attemptCount)` 强制重组
+  - ✅ **真机回归 4 场景全部通过（2026-05-20 晚）**：
+    - ① 加强卡机制（连续评 1 三次 → 入加强集合 → 跳过 cursor → 全公式 due 卡过完后回考） ✓
+    - ② 强标记升级（加强卡回考再评 1 → `isReinforced=true` + `stability ×0.5` 落库验证） ✓
+    - ③ 默写 blocked 路径（默写连错 3 次 → 写 blocked_formulas + FormulaDetail 顶部红条出现） ✓
+    - ④ 同日续接（评一张卡后 force-stop App → 重启进复习 Tab 从 cursor 续考，不是从头来） ✓
   - **Done 标准**：真机三轮回归（同日续接 / 跨日重开 / blocked 恢复路径），BUILD SUCCESSFUL
 
 - [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
