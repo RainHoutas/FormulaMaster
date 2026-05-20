@@ -45,7 +45,18 @@ object ReviewRouter {
         /** 是否已经历过回考阶段（避免重复回考）。 */
         val reinforcementRetestDone: Boolean = false,
         val phaseStatus: PhaseStatus = PhaseStatus.Reviewing,
-        val dictation: DictationState = DictationState.NotStarted
+        val dictation: DictationState = DictationState.NotStarted,
+        /**
+         * 上一次会话该公式默写被 Blocked（由调用方在 [ReviewRouter.start] 时根据
+         * 持久化的 ReviewSessionProgressEntity 填入）。
+         *
+         * 路由器**不影响轮转节奏**——blocked 公式在新会话仍走正常 due 卡复习；
+         * 进入默写阶段时通过 [NextAction.StartDictation.wasPreviouslyBlocked]
+         * 透传给 UI，由 UI 在默写界面顶部显示红色强提醒条。
+         *
+         * 默写通过（Graduated）或再次 Blocked 后，调用方应在写库时清除该标志。
+         */
+        val wasPreviouslyBlocked: Boolean = false
     ) {
         /** 该公式所有 due 卡都过了，且加强卡已回考完。 */
         val isReviewComplete: Boolean
@@ -84,7 +95,12 @@ object ReviewRouter {
         data class StartDictation(
             val formulaId: String,
             /** 0 = 首发；1 = hint1（露第一块）；2 = hint2（露推导前两步） */
-            val hintLevel: Int
+            val hintLevel: Int,
+            /**
+             * 上一次会话该公式默写被 Blocked（透传自 [FormulaContext.wasPreviouslyBlocked]）。
+             * UI 应在默写界面顶部展示红色强提醒条：「上次默写被阻断，本次格外仔细」。
+             */
+            val wasPreviouslyBlocked: Boolean = false
         ) : NextAction()
 
         object SessionEnd : NextAction()
@@ -140,10 +156,15 @@ object ReviewRouter {
      * @param dueCardsByFormula key=formulaId；value=该公式当前会话应考的 cardType 列表
      *                          （调用方需提前剔除未 due / 未实装 cardType，
      *                          并把 isReinforced=true 的卡排到前面）
+     * @param previouslyBlockedFormulas 上一次会话默写被 Blocked 的公式 ID 集合
+     *                                  （调用方从 ReviewSessionProgressEntity 读取）。
+     *                                  这些公式在本会话**正常走轮转**——只有进入默写阶段时
+     *                                  UI 才展示红色强提醒。状态机不做任何特殊跳队。
      */
     fun start(
         formulasInOrder: List<String>,
-        dueCardsByFormula: Map<String, List<CardType>>
+        dueCardsByFormula: Map<String, List<CardType>>,
+        previouslyBlockedFormulas: Set<String> = emptySet()
     ): Step {
         val ctxs = formulasInOrder.map { fid ->
             val due = dueCardsByFormula[fid].orEmpty()
@@ -151,7 +172,8 @@ object ReviewRouter {
             FormulaContext(
                 formulaId = fid,
                 dueCards = due,
-                phaseStatus = initialPhase
+                phaseStatus = initialPhase,
+                wasPreviouslyBlocked = fid in previouslyBlockedFormulas
             )
         }
         val state = RouterState(formulas = ctxs)
@@ -209,7 +231,11 @@ object ReviewRouter {
                     DictationState.NotStarted -> 0
                     is DictationState.InProgress -> d.errorCount
                 }
-                NextAction.StartDictation(ctx.formulaId, hintLevel)
+                NextAction.StartDictation(
+                    formulaId = ctx.formulaId,
+                    hintLevel = hintLevel,
+                    wasPreviouslyBlocked = ctx.wasPreviouslyBlocked
+                )
             }
             PhaseStatus.Graduated, PhaseStatus.Blocked ->
                 // 不可能进入此分支（findNextActiveIndex 已过滤），但保险起见走 SessionEnd 兜底

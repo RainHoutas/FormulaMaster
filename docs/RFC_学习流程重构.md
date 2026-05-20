@@ -371,10 +371,11 @@ Sprint 4：图谱 + 阶段切换
      - 回考评分 ≥ 3：加强卡标记清除（仅会话内）。
      - 回考评分 = 1：**升级为强标记**（见下文第 5 条）。
   
-  3. **blocked（默写错 3 次）双轨出口**
-     - **手动重试**：FormulaDetail（信息展示页）顶部显示红色 banner「该公式默写被阻断」+ 按钮「再试一次」→ 跳回路由器进入该公式的默写状态。
-     - **下次复习自动重新拉起**：下一次复习会话开始时，blocked 公式自动回到默写阶段（路由器读 `phase_status = blocked` 的公式列表，跳过其他 due 卡的轮转，先把 blocked 的默写消化掉）。
-     - blocked 状态在 `ReviewSessionProgressEntity` 持久化（跨会话不清）。
+  3. **blocked（默写错 3 次）出口：下次复习"轮到默写时强提醒"**（2026-05-20 二次拍板订正）
+     - **不跳队、不强行先做默写**——下次复习正常走轮转，blocked 公式的 due 卡照常考。
+     - 当**轮到该公式的默写阶段**时，UI 顶部显示红色强提醒条：「上次默写被阻断，本次格外仔细」+ 重新从 hint 0 开始默写。
+     - **手动重试**入口保留：FormulaDetail（信息展示页）顶部红色 banner + 按钮「再试一次」→ 跳回路由器进入该公式的默写。
+     - 实现：`ReviewSessionProgressEntity` 持久化 `lastDictationBlocked` 标志；新会话从该字段构造 `FormulaContext.wasPreviouslyBlocked`，路由器把此标志透传到 `NextAction.StartDictation.wasPreviouslyBlocked` 供 UI 渲染。Graduated / 再次 Blocked 后由调用方清除。
   
   4. **跨会话恢复：同日 cursor 续上，跨日重开**
      - 用户中途退出复习 Tab → 进度持久化到 `ReviewSessionProgressEntity`。

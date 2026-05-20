@@ -334,6 +334,49 @@ class ReviewRouterTest {
     }
 
     @Test
+    fun `wasPreviouslyBlocked 公式 正常走轮转 不跳队`() {
+        // F1 上次会话默写 blocked；F2 正常
+        var step = ReviewRouter.start(
+            formulasInOrder = listOf(f1, f2),
+            dueCardsByFormula = mapOf(
+                f1 to listOf(CardType.C1_Recognition),
+                f2 to listOf(CardType.C1_Recognition)
+            ),
+            previouslyBlockedFormulas = setOf(f1)
+        )
+        // 第一张应是 F1 的 C1（正常轮转顺序，不因 blocked 跳到默写）
+        val action = step.nextAction as NextAction.ShowCard
+        assertEquals(f1, action.formulaId)
+        assertEquals(CardType.C1_Recognition, action.cardType)
+        assertFalse(action.isReinforcementRetest)
+    }
+
+    @Test
+    fun `wasPreviouslyBlocked 公式 进入默写时透传强提醒标志`() {
+        var step = ReviewRouter.start(
+            formulasInOrder = listOf(f1),
+            dueCardsByFormula = mapOf(f1 to listOf(CardType.C1_Recognition)),
+            previouslyBlockedFormulas = setOf(f1)
+        )
+        // 走完 due 卡进默写
+        step = ReviewRouter.onInput(step.newState, Input.Rate(3))
+        val action = step.nextAction as NextAction.StartDictation
+        assertTrue("默写界面应携带'上次被阻断'强提醒", action.wasPreviouslyBlocked)
+        assertEquals(0, action.hintLevel)  // 重新做默写，hint 从 0 开始
+    }
+
+    @Test
+    fun `非 blocked 公式 默写不带强提醒标志`() {
+        var step = ReviewRouter.start(
+            formulasInOrder = listOf(f1),
+            dueCardsByFormula = mapOf(f1 to listOf(CardType.C1_Recognition))
+        )
+        step = ReviewRouter.onInput(step.newState, Input.Rate(3))
+        val action = step.nextAction as NextAction.StartDictation
+        assertFalse(action.wasPreviouslyBlocked)
+    }
+
+    @Test
     fun `Dictation hint level 跨 InProgress 状态正确累计`() {
         var step = startSingleFormula()
         step = ReviewRouter.onInput(step.newState, Input.Rate(3))
