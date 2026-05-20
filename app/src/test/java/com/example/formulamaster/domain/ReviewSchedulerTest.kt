@@ -1,7 +1,9 @@
 package com.example.formulamaster.domain
 
 import com.example.formulamaster.data.local.entity.StudyStateEntity
+import com.example.formulamaster.data.local.entity.SubCardStateEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -262,6 +264,138 @@ class ReviewSchedulerTest {
         )
         assertEquals("顺延后应落在次日（Jun 16）", 16, dayIn(result.nextReviewTime, UTC).dayOfMonth)
         assertEquals("顺延后小时应为 08:00", 8, hourIn(result.nextReviewTime, UTC))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Sprint 1 Task 1.8：SubCardStateEntity 重载补强
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun makeSubCard(
+        cardType: String = "c1",
+        stability: Double = 5.0,
+        difficulty: Double = 3.0,
+        lapses: Int = 0
+    ) = SubCardStateEntity(
+        formulaId      = "test_formula",
+        cardType       = cardType,
+        stability      = stability,
+        difficulty     = difficulty,
+        lastReviewTime = 0L,
+        nextReviewTime = 0L,
+        totalReviews   = 0,
+        lapses         = lapses
+    )
+
+    // ── 子卡场景 1：母卡 / 子卡 R=3 同输入产出 D/S/nextReview 相同（FSRS 核心共享）─
+    @Test
+    fun `subcard R=3 produces identical FSRS core as parent`() {
+        val parent = makeState(stability = 5.0, difficulty = 3.0)
+        val sub    = makeSubCard(stability = 5.0, difficulty = 3.0)
+
+        val parentResult = ReviewScheduler.calculate(parent, rating = 3, currentTimeMs = NOW,
+            hourOfDay = 8, zoneId = UTC)
+        val subResult    = ReviewScheduler.calculate(sub,    rating = 3, currentTimeMs = NOW,
+            hourOfDay = 8, zoneId = UTC)
+
+        assertEquals(parentResult.newDifficulty, subResult.newDifficulty, 1e-9)
+        assertEquals(parentResult.newStability,  subResult.newStability,  1e-9)
+        assertEquals(parentResult.nextReviewTime, subResult.nextReviewTime)
+        assertEquals(parentResult.newLapses, subResult.newLapses)
+    }
+
+    // ── 子卡场景 2：R=1 子卡遗忘 lapses+1，stability ≤ 1.0 ─────────────────────
+    @Test
+    fun `subcard R=1 forgetting - lapses increments and stability capped at 1`() {
+        val sub = makeSubCard(stability = 5.0, lapses = 2)
+        val result = ReviewScheduler.calculate(sub, rating = 1, currentTimeMs = NOW,
+            hourOfDay = 8, zoneId = UTC)
+
+        assertEquals(3, result.newLapses)            // 2 + 1
+        assertEquals(1.0, result.newStability, 1e-9) // min(5×0.2, 1.0) = 1.0
+    }
+
+    // ── 子卡场景 3：6 卡型独立调度互不干扰 ─────────────────────────────────────
+    @Test
+    fun `subcard 6 card types schedule independently`() {
+        val codes = listOf("c1", "c2", "c3", "c4", "c5", "c6")
+        val results = codes.associateWith { code ->
+            val rating = when (code) { "c1" -> 4; "c2" -> 1; else -> 3 }
+            val s = makeSubCard(cardType = code, stability = 5.0)
+            ReviewScheduler.calculate(s, rating = rating, currentTimeMs = NOW,
+                hourOfDay = 8, zoneId = UTC)
+        }
+
+        // C1 极易 → stability 上涨；C2 遗忘 → 重置到 1.0
+        assertTrue("C1 极易 S 应 > 5: ${results["c1"]!!.newStability}", results["c1"]!!.newStability > 5.0)
+        assertEquals(1.0, results["c2"]!!.newStability, 1e-9)
+        // C1 与 C2 nextReviewTime 不同（间隔差异）
+        assertNotEquals(results["c1"]!!.nextReviewTime, results["c2"]!!.nextReviewTime)
+        // C2 遗忘 lapses+1，其余为 0
+        assertEquals(1, results["c2"]!!.newLapses)
+        assertEquals(0, results["c1"]!!.newLapses)
+        assertEquals(0, results["c3"]!!.newLapses)
+    }
+
+    // ── 子卡场景 4：R=4 + isTestMode → 测试模式奖励 1.5 倍 ───────────────────
+    @Test
+    fun `subcard R=4 testMode - stability is 1_5x normal`() {
+        val sub      = makeSubCard(stability = 5.0, difficulty = 3.0)
+        val normal   = ReviewScheduler.calculate(sub, rating = 4, isTestMode = false,
+            currentTimeMs = NOW, hourOfDay = 8, zoneId = UTC)
+        val testMode = ReviewScheduler.calculate(sub, rating = 4, isTestMode = true,
+            currentTimeMs = NOW, hourOfDay = 8, zoneId = UTC)
+        assertEquals(1.5, testMode.newStability / normal.newStability, 1e-9)
+    }
+
+    // ── 子卡场景 5：子卡返回类型 SubCardSchedulerResult（编译期保证无 learningState）─
+    @Test
+    fun `subcard result type is SubCardSchedulerResult`() {
+        val sub = makeSubCard(stability = 35.0, difficulty = 3.0)
+        val r: SubCardSchedulerResult = ReviewScheduler.calculate(
+            sub, rating = 3, currentTimeMs = NOW, hourOfDay = 8, zoneId = UTC
+        )
+        assertTrue(r.newStability > 35.0)
+    }
+
+    // ── 子卡场景 6：刷新整点截断 / 子卡同样生效 ─────────────────────────────────
+    @Test
+    fun `subcard nextReviewTime truncated to refresh hour`() {
+        val tenAM = zdt(2024, 6, 15, 10, zone = UTC)
+        val sub   = makeSubCard(stability = 7.0, difficulty = 3.0)
+
+        val r = ReviewScheduler.calculate(sub, rating = 3, currentTimeMs = tenAM,
+            hourOfDay = 8, zoneId = UTC)
+
+        assertEquals(8, hourIn(r.nextReviewTime, UTC))
+        assertEquals(0, minuteIn(r.nextReviewTime, UTC))
+    }
+
+    // ── 子卡场景 7：极短稳定性 + 已过整点 → 顺延次日（子卡同样适用）─────────────
+    @Test
+    fun `subcard tiny stability past refresh hour - postponed to next day`() {
+        val tenAM = zdt(2024, 6, 15, 10, zone = UTC)
+        val sub   = makeSubCard(stability = 1.0, difficulty = 3.0)
+        val r = ReviewScheduler.calculate(sub, rating = 1, currentTimeMs = tenAM,
+            hourOfDay = 8, zoneId = UTC)
+
+        assertTrue("nextReview 应 > current", r.nextReviewTime > tenAM)
+        assertEquals(16, dayIn(r.nextReviewTime, UTC).dayOfMonth)
+        assertEquals(8, hourIn(r.nextReviewTime, UTC))
+    }
+
+    // ── 子卡场景 8：rating 越界（0 / 5 / -1 / 99）抛 IllegalArgumentException ─
+    @Test
+    fun `subcard rating out of range throws`() {
+        val sub = makeSubCard()
+        listOf(0, 5, -1, 99).forEach { bad ->
+            try {
+                ReviewScheduler.calculate(sub, rating = bad, currentTimeMs = NOW,
+                    hourOfDay = 8, zoneId = UTC)
+                throw AssertionError("rating=$bad 应抛 IllegalArgumentException")
+            } catch (e: IllegalArgumentException) {
+                // 预期
+            }
+        }
     }
 
     // ── 场景 13：calculate() hourOfDay 参数端到端：整点正确落地 ──────────────────

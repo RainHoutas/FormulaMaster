@@ -161,6 +161,100 @@ class ErrorReportProcessorTest {
         }
     }
 
+    // ── Sprint 1 Task 1.8：边界补强 ────────────────────────────────────────────
+
+    @Test
+    fun `空 wrongFormulaIds 仍写入 error_reports 但不动子卡`() = runTest {
+        seedFormulaAndSubCards("f1", initialStability = 8.0, initialLapses = 0)
+
+        val id = processor.process(
+            ErrorReportInput(
+                subject = "高数", chapter = "极限", sourceType = "其他",
+                sourceTag = "empty-case",
+                wrongFormulaIds = emptyList(),
+                note = "用户标记但没选公式"
+            ),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+
+        // 错题本仍写入（含 note）
+        assertEquals("用户标记但没选公式", db.errorReportDao().getById(id)?.note)
+        // 没指定公式 → f1 的子卡保持不变
+        db.subCardStateDao().getByFormulaId("f1").forEach {
+            assertEquals(8.0, it.stability, 1e-9)
+            assertEquals(0, it.lapses)
+        }
+    }
+
+    @Test
+    fun `混合 ids 已学习公式被砍 未学习公式不报错`() = runTest {
+        seedFormulaAndSubCards("studied", initialStability = 6.0, initialLapses = 1)
+        // not_studied 公式存在但无 SubCardState
+        db.formulaDao().insertAll(listOf(fakeFormula("not_studied")))
+
+        processor.process(
+            ErrorReportInput(
+                subject = "高数", chapter = "微积分", sourceType = "习题集",
+                sourceTag = "mix",
+                wrongFormulaIds = listOf("studied", "not_studied", "completely_missing")
+            ),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+
+        // studied：6 张子卡均被砍半（6 × 0.5 = 3.0），lapses +1
+        db.subCardStateDao().getByFormulaId("studied").forEach {
+            assertEquals(3.0, it.stability, 1e-9)
+            assertEquals(2, it.lapses)
+        }
+        // not_studied / completely_missing：依旧没有 SubCardState 行（不创建占位）
+        assertTrue(db.subCardStateDao().getByFormulaId("not_studied").isEmpty())
+        assertTrue(db.subCardStateDao().getByFormulaId("completely_missing").isEmpty())
+    }
+
+    @Test
+    fun `已是 minStability 的公式连续两次错题仍守住 0_5 下限`() = runTest {
+        seedFormulaAndSubCards("rock_bottom", initialStability = 0.5, initialLapses = 0)
+
+        repeat(3) {
+            processor.process(
+                ErrorReportInput(
+                    subject = "高数", chapter = "极限", sourceType = "其他",
+                    sourceTag = "round-$it",
+                    wrongFormulaIds = listOf("rock_bottom")
+                ),
+                currentTimeMs = fixedNow, zoneId = utc
+            )
+        }
+
+        // 三次错题后 stability 仍为 0.5（下限保护持续生效），lapses 累计到 3
+        db.subCardStateDao().getByFormulaId("rock_bottom").forEach {
+            assertEquals(0.5, it.stability, 1e-9)
+            assertEquals(3, it.lapses)
+        }
+    }
+
+    @Test
+    fun `nextReviewTime 精确落到次日 hourOfDay-minute（自定义时间字段）`() = runTest {
+        seedFormulaAndSubCards("ft", initialStability = 4.0, initialLapses = 0)
+
+        processor.process(
+            ErrorReportInput(
+                subject = "高数", chapter = "极限", sourceType = "其他",
+                sourceTag = "time-precise",
+                wrongFormulaIds = listOf("ft")
+            ),
+            hourOfDay = 21, minute = 30,
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+
+        val expectedNextReview = ZonedDateTime
+            .of(2026, 5, 20, 21, 30, 0, 0, utc)
+            .toInstant().toEpochMilli()
+        db.subCardStateDao().getByFormulaId("ft").forEach {
+            assertEquals(expectedNextReview, it.nextReviewTime)
+        }
+    }
+
     @Test
     fun `未学习公式不报错（UPDATE 0 行）`() = runTest {
         // 公式存在但**没有** SubCardState 记录

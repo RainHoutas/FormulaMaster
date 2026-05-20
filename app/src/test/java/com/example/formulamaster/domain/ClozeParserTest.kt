@@ -255,4 +255,69 @@ class ClozeParserTest {
         val r = ClozeParser.minimalSample(items, emptyList(), random = Random(0))
         assertNotNull(r)
     }
+
+    // ── Sprint 1 Task 1.8：补强边界 ────────────────────────────────────────────
+
+    @Test
+    fun `weightedSample mustBlank with weight 0 still forced in`() {
+        // mustBlank 语义优先于 weight=0 排除（即使 weight=0 也强制入选）
+        val items = listOf(
+            item(1, weight = 0, mustBlank = true),
+            item(2, weight = 5),
+            item(3, weight = 5)
+        )
+        val result = ClozeParser.weightedSample(items, 2, random = Random(0))
+        assertEquals(2, result.size)
+        assertTrue("mustBlank #1（即使 weight=0）也应入选: ${result.map { it.index }}",
+            result.any { it.index == 1 })
+    }
+
+    @Test
+    fun `weightedSample all zero weights and no mustBlank returns empty`() {
+        // 全 weight=0 + 没 mustBlank → 总权重 0，repeat 跳过 → 返回空
+        val items = listOf(item(1, weight = 0), item(2, weight = 0), item(3, weight = 0))
+        val result = ClozeParser.weightedSample(items, 2, random = Random(0))
+        assertTrue("全 weight=0 应返回空: ${result.map { it.index }}", result.isEmpty())
+    }
+
+    @Test
+    fun `weightedSample recentErrors with unknown index is ignored`() {
+        // recentErrors 含不存在的 index（如 #99）不应抛或扰动其他项
+        val items = listOf(item(1, weight = 5), item(2, weight = 5))
+        val result = ClozeParser.weightedSample(
+            items, 2,
+            recentErrors = mapOf(99 to 100, 200 to 50),
+            random = Random(0)
+        )
+        assertEquals(2, result.size)
+        assertEquals(setOf(1, 2), result.map { it.index }.toSet())
+    }
+
+    @Test
+    fun `weightedSample same seed produces deterministic order`() {
+        // 同一种子的两次独立调用应返回完全相同的抽样结果（便于重放调试）
+        val items = (1..6).map { item(it, weight = it) }
+        val a = ClozeParser.weightedSample(items, 4, random = Random(2026))
+        val b = ClozeParser.weightedSample(items, 4, random = Random(2026))
+        assertEquals(a.map { it.index }, b.map { it.index })
+    }
+
+    @Test
+    fun `minimalSample partial precondition overlap excludes only matched`() {
+        // 5 项里有 2 项落在 preconditions 集合 → 200 次抽样永远在剩 3 项里
+        val items = listOf(
+            ClozeItem(1, "cond_a", emptyList()),
+            ClozeItem(2, "x^n",    emptyList()),
+            ClozeItem(3, "cond_b", emptyList()),
+            ClozeItem(4, "n!",     emptyList()),
+            ClozeItem(5, "e^x",    emptyList())
+        )
+        val preconditions = listOf("cond_a", "cond_b")
+        repeat(200) { seed ->
+            val r = ClozeParser.minimalSample(items, preconditions, random = Random(seed.toLong()))
+            assertNotNull(r)
+            assertTrue("seed=$seed: 不应抽到 cond_*: got=${r?.index}/${r?.placeholder}",
+                r!!.index in setOf(2, 4, 5))
+        }
+    }
 }

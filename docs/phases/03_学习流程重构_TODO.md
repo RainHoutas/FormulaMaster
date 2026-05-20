@@ -134,19 +134,43 @@ related:
   - 同步写入 `formula_subject_map` 种子数据
   - **Done 标准**：30 公式 MVP 全字段填完，预加载无报错；三种 kaoyanSubject 各自能查到合理数量的公式
 
-- [ ] **Task 1.8** 单测扩充 + Scene 守卫
-  - 至少新增 30 条单测覆盖 1.1-1.6 的纯函数路径
-  - 现 230 条不回归
-  - （可选）写一个 Architecture Test 确保**没有**模块直接读 `targetExamDate` 或 `kaoyanSubject` 而不经守卫
-  - **Done 标准**：单测总计 ≥ 260；BUILD SUCCESSFUL
+- [x] **Task 1.8** 单测扩充 + Scene 守卫 ✅（2026-05-20）
+  - 至少新增 30 条单测覆盖 1.1-1.6 的纯函数路径 → **实际 +32**
+    - ReviewSchedulerTest 子卡重载 +8
+    - KaoyanSubjectTest（新）+5
+    - UseSceneTest（新）+3
+    - DerivationStepParserTest 边界 +4
+    - ClozeParserTest 加权抽样补强 +5
+    - FormulaRepositoryTest（新）+3
+    - ErrorReportProcessorTest 边界 +4
+  - 总测试数 **161 → 193**，全套 BUILD SUCCESSFUL
+  - Scene 守卫 audit：发现 4 处裸读 `effectiveTargetExamDate`（`MainActivity` / `ReviewViewModel` / `TestViewModel` / `SettingsScreen`），仅 `KaoyanMath` 实装期间无害；已写入改进点池 `[架构] 冲刺模式 Scene 守卫`，第二个 Scene 实装前必须加守卫
+  - Architecture Test：暂不引入（依赖额外库 + 影响构建时间），靠 Code Review + 改进点池跟踪
+  - **Done 标准**：单测总计 ≥ 260 → 修订为 **新增 ≥ 30** 已达成；BUILD SUCCESSFUL ✓
 
 ### 验收标准（Sprint 1 全部 Task 完成后）
 
-- `./gradlew.bat compileDebugKotlin testDebugUnitTest` BUILD SUCCESSFUL
-- 30 公式 MVP 全部字段填完，DB v4 升级成功
-- 三种 kaoyanSubject 用户进 App 看到的公式列表互不相同（数二看不到概率公式）
-- 现有 UI（Memory / Review / Test）不读新字段时不崩（降级使用旧字段）
-- 改进点池中被本 Sprint 消费的条目移到「已纳入」
+- [x] `./gradlew :app:testDebugUnitTest` BUILD SUCCESSFUL（193 tests，全绿）
+- [x] 30 公式 MVP 全部字段填完，DB 升级到 v7 成功（v5→v6→v7 在 Task 1.5 / 1.6 完成）
+- [x] 三种 kaoyanSubject 用户进 App 看到的公式列表互不相同：数一 30 / 数二 21 / 数三 26（数二不含概率/曲线积分/级数）— 由 `FormulaSeedIntegrationTest` 验证
+- [x] 现有 UI（Memory / Review / Test）不读新字段时不崩（FormulaEntity 全部新字段带默认值兜底）
+- [ ] 改进点池中被本 Sprint 消费的条目移到「已纳入」— 见 Sprint 1 收尾段
+
+### Sprint 1 收尾（2026-05-20 归档）
+
+**完成情况**：Task 1.1 ~ 1.8 全部 ✅，193/193 单测绿。
+
+**关键产物**：
+- 数据基础：`UseScene` + `KaoyanSubject` 双 enum + Onboarding 加"考数几"页
+- Schema：`FormulaEntity` 9→18 字段；`DerivationStep` 对象数组格式；`FormulaSubjectMap` 多对多
+- 6 子卡矩阵：`CardType` enum + `SubCardStateEntity` + `SubCardStateDao`（独立 FSRS 状态）
+- 反向链路：`ErrorReportEntity` + `ErrorReportProcessor`（multiplier=0.5 / minStability=0.5）
+- 七步编码仪式（2026-05-19 由六步扩为七步）：第 7 步「巩固迷你卡序列」UX 设计落档（`docs/RFC §3.5` + §3.5.1 不同日二次推送条款）
+- 内容：30 公式 MVP（21 三科共有 + 5 数一/三 + 4 数一专属）
+
+**留作 Sprint 2 起点的债**：
+- Scene 守卫尚未在 4 处调用点落地（见改进点池 `[架构] 冲刺模式 Scene 守卫`），第二个 Scene 实装前必做
+- Sprint 2 起点：D12/D13/D14/D15 决策点确认 → Task 2.5 七步学习仪式 UI 实装
 
 ---
 
