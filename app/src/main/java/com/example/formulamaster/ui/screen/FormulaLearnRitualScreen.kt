@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -409,27 +407,27 @@ private fun Step3Derivation(steps: List<com.example.formulamaster.domain.model.D
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            LazyColumn {
-                items(steps) { step ->
-                    ElevatedCard(
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            if (step.latex.isNotBlank()) {
-                                MathFormulaView(
-                                    latex = step.latex,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(80.dp)
-                                )
-                                Spacer(Modifier.height(6.dp))
-                            }
-                            if (step.note.isNotBlank()) {
-                                Text(step.note, style = MaterialTheme.typography.bodySmall)
-                            }
+            // 外层 StepScaffold 已是 verticalScroll，不能再嵌 LazyColumn
+            // （会触发 IllegalStateException: infinity maximum height）。
+            steps.forEach { step ->
+                ElevatedCard(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        if (step.latex.isNotBlank()) {
+                            MathFormulaView(
+                                latex = step.latex,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(80.dp)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        if (step.note.isNotBlank()) {
+                            Text(step.note, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }

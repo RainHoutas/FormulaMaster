@@ -170,8 +170,15 @@ fun MainScreen(navTarget: String? = null) {
             // ── Tab 主页面 ────────────────────────────────────────────────────
             composable(AppRoute.Memory.route) {
                 MemoryScreen(
-                    onFormulaClick = { formulaId ->
-                        navController.navigate(AppRoute.FormulaDetail.createRoute(formulaId))
+                    onFormulaClick = { formulaId, isActivated ->
+                        // 未激活公式直接进七步学习仪式；
+                        // 已激活公式进信息展示页（FormulaDetail）方便查阅
+                        val route = if (isActivated) {
+                            AppRoute.FormulaDetail.createRoute(formulaId)
+                        } else {
+                            AppRoute.FormulaLearnRitual.createRoute(formulaId)
+                        }
+                        navController.navigate(route)
                     },
                     contentPadding = innerPadding
                 )

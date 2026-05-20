@@ -35,7 +35,7 @@ import com.example.formulamaster.ui.viewmodel.MemoryViewModel
 
 @Composable
 fun MemoryScreen(
-    onFormulaClick: (String) -> Unit,
+    onFormulaClick: (String, Boolean) -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     viewModel: MemoryViewModel = viewModel(factory = MemoryViewModel.factory(LocalContext.current))
 ) {
@@ -63,7 +63,7 @@ fun MemoryScreen(
         items(uiState.formulas, key = { it.formula.formulaId }) { item ->
             FormulaCard(
                 item = item,
-                onClick = { onFormulaClick(item.formula.formulaId) }
+                onClick = { onFormulaClick(item.formula.formulaId, item.isActivated) }
             )
         }
     }
