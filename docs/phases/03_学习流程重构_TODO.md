@@ -219,18 +219,19 @@ related:
     - **修复**：resume 时用最新 `blocked_formulas` 覆盖 `wasPreviouslyBlocked`（避免持久化快照与表错位）
     - `markFormulaBlocked` / `clearFormulaBlocked` / `endSession` 直白 API 供 ViewModel 调用
   - ✅ `ReviewSessionRepositoryTest` 15 case（fake DAO 跳过 Robolectric；含会话日切边界 / 三态决策 / 跨日覆盖 / blocked 透传 / E2E 续接，252→267 全绿）
-  - ⏳ `ReviewViewModel` 改造：
-    - 启动时按"同日续 / 跨日重开"加载/丢弃 ReviewSessionProgressEntity
-    - 每次 `Input.Rate` 后处理 `Event.CardRated` → 走 FSRS → 写 sub_card_states
-    - 处理 `Event.ReinforcementUpgraded` → 写 `isReinforced=true` + stability ×0.5
-    - 处理 `Event.ReinforcementCleared` → 不写库（标记仅会话内）
-    - 处理 `Event.FormulaGraduated` → `blockedFormulaDao.deleteById(formulaId)`（清除 blocked banner 标志）
-    - 处理 `Event.FormulaBlocked` → `blockedFormulaDao.upsert(BlockedFormulaEntity(formulaId, now))`
-    - 处理 `consecutiveGoodReviews >= 3 且 isReinforced` → 自动清 isReinforced（强标记消除规则）
-    - 启动会话时 `blockedFormulaDao.getAllIds()` → `ReviewRouter.start(previouslyBlockedFormulas = ...)`
+  - ✅ 新建 `data/repository/ReviewEventProcessor.kt`：把 [ReviewRouter.Event] sealed 子类翻译成 DAO 写操作；处理 FSRS 计算 + 强标记自动清除 + blocked_formulas 维护
+  - ✅ 新建 `ui/viewmodel/RouterReviewViewModel.kt`：路由驱动的 VM；旧 [ReviewViewModel] 保留不动（"不动 UI"约束自然满足，下场切 UI 时换 wireup）；含 `buildSessionInputs` 把 due 子卡按 isReinforced 优先 + examWeight 降序组织
+  - ✅ `ReviewEventProcessorTest` 16 case（267→283 全绿）覆盖：
+    - CardRated 三种评分路径 + FSRS 计算 + review_log 写入 + 子卡缺失静默跳过
+    - 强标记自动清除（连 3 次评 ≥ 3 清 / 评 1 计数归零 / 非强标记不误伤）
+    - ReinforcementUpgraded（写 isReinforced + stability×0.5 + 计数归零）+ 不重复写日志
+    - ReinforcementCleared / EnterDictation 无副作用守恒
+    - FormulaBlocked / FormulaGraduated 操作 blocked_formulas
+    - processAll 多事件批处理顺序保证
+  - ✅ Memory Tab dueCards 排序（已在 `RouterReviewViewModel.buildSessionInputs` 内实现：先按是否含强标记降序 → examWeight 降序 → formulaId 稳定）
+  - ⏳ ReviewScreen UI 切换到 RouterReviewViewModel（旧 VM 仍在，需要替换 ReviewScreen 调用方）
   - ⏳ blocked banner UI 接入 FormulaDetailScreen（observeByFormulaId Flow → 顶部红条 + 「再试一次」按钮 → 跳路由器直接 Dictating）
   - ⏳ 默写界面顶部红条（`NextAction.StartDictation.wasPreviouslyBlocked = true` 时渲染）
-  - ⏳ Memory Tab 复习 Tab 调用 `ReviewRouter.start` 时按 isReinforced 优先排序 dueCards
   - **Done 标准**：真机三轮回归（同日续接 / 跨日重开 / blocked 恢复路径），BUILD SUCCESSFUL
 
 - [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
