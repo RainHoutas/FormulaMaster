@@ -16,6 +16,8 @@ import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ReviewRouter
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +44,8 @@ data class RouterReviewUiState(
     val pendingAction: ReviewRouter.NextAction = ReviewRouter.NextAction.SessionEnd,
     val currentFormula: FormulaEntity? = null,
     val currentSubCard: SubCardStateEntity? = null,
+    /** [currentFormula].preconditions 解析后的条件列表（C1/C3 露出展示用，避免 Composable 内解析 JSON）。 */
+    val currentPreconditions: List<String> = emptyList(),
     val isSessionEnd: Boolean = false,
     /** "Fresh" / "Resumed" / "FallbackToFresh"；UI 可在调试模式 toast 提示，生产可忽略 */
     val initType: String? = null
@@ -72,6 +76,8 @@ class RouterReviewViewModel(
     /** 当前路由器状态；只在 ViewModel 内可变。 */
     private var currentState: ReviewRouter.RouterState? = null
     private var sessionDateMs: Long = 0L
+
+    private val stringListType = object : TypeToken<List<String>>() {}.type
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -202,14 +208,20 @@ class RouterReviewViewModel(
             }
             ReviewRouter.NextAction.SessionEnd -> null to null
         }
+        val preconditions: List<String> = formula?.let { f ->
+            runCatching {
+                Gson().fromJson<List<String>>(f.preconditions, stringListType) ?: emptyList()
+            }.getOrDefault(emptyList())
+        }.orEmpty()
         _uiState.update {
             it.copy(
-                isLoading       = false,
-                pendingAction   = action,
-                currentFormula  = formula,
-                currentSubCard  = subCard,
-                isSessionEnd    = action is ReviewRouter.NextAction.SessionEnd,
-                initType        = initType ?: it.initType
+                isLoading           = false,
+                pendingAction       = action,
+                currentFormula      = formula,
+                currentSubCard      = subCard,
+                currentPreconditions = preconditions,
+                isSessionEnd        = action is ReviewRouter.NextAction.SessionEnd,
+                initType            = initType ?: it.initType
             )
         }
     }
