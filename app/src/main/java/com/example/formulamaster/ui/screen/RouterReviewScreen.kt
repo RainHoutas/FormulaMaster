@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +29,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,9 +42,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.ClozeGrading
 import com.example.formulamaster.domain.ReviewRouter
+import com.example.formulamaster.domain.model.ClozeItem
+import com.example.formulamaster.ui.component.LatexChipsView
 import com.example.formulamaster.ui.component.MathFormulaView
 import com.example.formulamaster.ui.viewmodel.RouterReviewViewModel
+import kotlinx.coroutines.delay
 
 /**
  * Sprint 2 Task 2.1c / 2.2：路由驱动的复习屏。
@@ -91,11 +99,13 @@ fun RouterReviewScreen(
             else -> when (val action = uiState.pendingAction) {
                 is ReviewRouter.NextAction.ShowCard -> {
                     val isReinforced = uiState.currentSubCard?.isReinforced == true
-                    if (action.cardType == CardType.C1_Recognition) {
-                        C1RecognitionPane(
+                    val title = uiState.currentFormula?.title.orEmpty()
+                    val latex = uiState.currentFormula?.latexCode.orEmpty()
+                    when (action.cardType) {
+                        CardType.C1_Recognition -> C1RecognitionPane(
                             action = action,
-                            formulaTitle = uiState.currentFormula?.title.orEmpty(),
-                            formulaLatex = uiState.currentFormula?.latexCode.orEmpty(),
+                            formulaTitle = title,
+                            formulaLatex = latex,
                             preconditions = uiState.currentPreconditions,
                             purpose = uiState.currentFormula?.purpose.orEmpty(),
                             mnemonic = uiState.currentFormula?.mnemonic,
@@ -103,15 +113,33 @@ fun RouterReviewScreen(
                             onRate = viewModel::rate,
                             modifier = Modifier.fillMaxSize()
                         )
-                    } else {
-                        ShowCardPane(
+
+                        // C2 无可挖空（数据缺失）时回落通用骨架，避免空卡卡住
+                        CardType.C2_Cloze -> if (uiState.currentClozeBlanks.isNotEmpty()) {
+                            C2ClozePane(
+                                action = action,
+                                formulaTitle = title,
+                                blanks = uiState.currentClozeBlanks,
+                                isReinforced = isReinforced,
+                                onRate = viewModel::rate,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
+                        }
+
+                        CardType.C3_Precondition -> C3PreconditionPane(
                             action = action,
-                            formulaTitle = uiState.currentFormula?.title.orEmpty(),
-                            formulaLatex = uiState.currentFormula?.latexCode.orEmpty(),
+                            formulaTitle = title,
+                            formulaLatex = latex,
+                            preconditions = uiState.currentPreconditions,
+                            purpose = uiState.currentFormula?.purpose.orEmpty(),
                             isReinforced = isReinforced,
                             onRate = viewModel::rate,
                             modifier = Modifier.fillMaxSize()
                         )
+
+                        else -> ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
                     }
                 }
 
@@ -283,6 +311,231 @@ private fun SectionLabel(text: String) {
         modifier = Modifier.padding(bottom = 4.dp)
     )
 }
+
+// ── C2 加权 cloze 卡专属面板（Task 2.3） ───────────────────────────────────────
+
+/**
+ * C2 加权 cloze 卡：每个挖空一组 chip 单选 → 提交 → 系统自动判对错 → 映射评分。
+ *
+ * 评分由 [ClozeGrading] 决定（全对→4 / 有错→1），用户不自评。提交后展示逐空 ✓/✗ +
+ * 错空的正确答案，再点「继续」把 [ClozeGrading.Result.rating] 交给路由器。
+ *
+ * 选项顺序按卡片 key 稳定乱序，避免正确项总在固定位置。
+ */
+@Composable
+private fun C2ClozePane(
+    action: ReviewRouter.NextAction.ShowCard,
+    formulaTitle: String,
+    blanks: List<ClozeItem>,
+    isReinforced: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shuffledOptions = remember(action.formulaId, action.cardType) {
+        blanks.associate { it.index to it.options.shuffled() }
+    }
+    val selections = remember(action.formulaId, action.cardType) { mutableStateMapOf<Int, String>() }
+    var result by remember(action.formulaId, action.cardType) { mutableStateOf<ClozeGrading.Result?>(null) }
+
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        CardHeaderChips(action.cardType, isReinforced, action.isReinforcementRetest)
+        Spacer(Modifier.height(12.dp))
+        Text(formulaTitle.ifEmpty { "（公式标题缺失）" }, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "为每个挖空选择正确的部件",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
+
+        val submitted = result != null
+        blanks.forEachIndexed { i, blank ->
+            val opts = shuffledOptions[blank.index].orEmpty()
+            val correctThis = result?.perBlankCorrect?.get(blank.index)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("空 ${i + 1}", style = MaterialTheme.typography.labelLarge)
+                if (submitted && correctThis != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (correctThis) "✓ 正确" else "✗ 错误",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (correctThis) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+
+            if (!submitted) {
+                LatexChipsView(
+                    items = opts,
+                    selectable = true,
+                    singleSelect = true,
+                    onSelectionChanged = { set ->
+                        val idx = set.firstOrNull()
+                        if (idx != null && idx in opts.indices) selections[blank.index] = opts[idx]
+                        else selections.remove(blank.index)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else if (correctThis == false) {
+                Text(
+                    text = "正确答案：",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                LatexChipsView(
+                    items = listOf(blank.placeholder),
+                    selectable = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        if (!submitted) {
+            val allFilled = selections.size == blanks.size
+            Button(
+                onClick = { result = ClozeGrading.grade(blanks, selections.toMap()) },
+                enabled = allFilled,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (allFilled) "提交" else "请填完所有空（${selections.size}/${blanks.size}）")
+            }
+        } else {
+            val r = result!!
+            Surface(
+                color = if (r.allCorrect) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (r.allCorrect) "全部正确 · 系统评定 4（一眼出）"
+                    else "有错 · 系统评定 1（不会）",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { onRate(r.rating) }, modifier = Modifier.fillMaxWidth()) {
+                Text("继续")
+            }
+        }
+    }
+}
+
+// ── C3 条件先行卡专属面板（Task 2.4） ──────────────────────────────────────────
+
+/**
+ * C3 条件先行卡：先 [C3_COUNTDOWN_SECONDS] 秒强制展示「条件 + 用途」（不可作答），
+ * 解锁后用户回想公式 → 「看答案」露出公式 → 1/2/3/4 自评。
+ *
+ * 与 C1 对称，只是以条件先行 + 加了倒计时强制阅读门。
+ */
+@Composable
+private fun C3PreconditionPane(
+    action: ReviewRouter.NextAction.ShowCard,
+    formulaTitle: String,
+    formulaLatex: String,
+    preconditions: List<String>,
+    purpose: String,
+    isReinforced: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var remaining by remember(action.formulaId, action.cardType) { mutableIntStateOf(C3_COUNTDOWN_SECONDS) }
+    var revealed by rememberSaveable(action.formulaId, action.cardType) { mutableStateOf(false) }
+
+    LaunchedEffect(action.formulaId, action.cardType) {
+        remaining = C3_COUNTDOWN_SECONDS
+        while (remaining > 0) {
+            delay(1000)
+            remaining -= 1
+        }
+    }
+    val unlocked = remaining <= 0
+
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        CardHeaderChips(action.cardType, isReinforced, action.isReinforcementRetest)
+        Spacer(Modifier.height(12.dp))
+        Text(formulaTitle.ifEmpty { "（公式标题缺失）" }, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(20.dp))
+
+        ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                SectionLabel("适用条件")
+                if (preconditions.isEmpty()) {
+                    Text(
+                        "（暂未标注）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                } else {
+                    preconditions.forEach {
+                        Text("• $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+                RevealSectionDivider()
+                SectionLabel("用途")
+                Text(
+                    text = purpose.ifBlank { "（暂未标注）" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (purpose.isBlank()) MaterialTheme.colorScheme.outline
+                    else MaterialTheme.colorScheme.onSurface
+                )
+                if (revealed) {
+                    RevealSectionDivider()
+                    SectionLabel("公式")
+                    MathFormulaView(
+                        latex = formulaLatex,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        when {
+            !unlocked -> Text(
+                text = "请先看条件与用途 · $remaining 秒后可作答",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+
+            !revealed -> {
+                Text(
+                    "回想这个公式…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Button(onClick = { revealed = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("看答案")
+                }
+            }
+
+            else -> RatingRow(onRate = onRate)
+        }
+    }
+}
+
+private const val C3_COUNTDOWN_SECONDS = 3
 
 // ── ShowCard 通用骨架（C2-C6 暂用） ─────────────────────────────────────────────
 

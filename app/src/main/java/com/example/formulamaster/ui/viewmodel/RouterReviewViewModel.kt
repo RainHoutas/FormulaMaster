@@ -15,7 +15,9 @@ import com.example.formulamaster.data.repository.ReviewEventProcessor
 import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.ReviewRouter
+import com.example.formulamaster.domain.model.ClozeItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +48,11 @@ data class RouterReviewUiState(
     val currentSubCard: SubCardStateEntity? = null,
     /** [currentFormula].preconditions 解析后的条件列表（C1/C3 露出展示用，避免 Composable 内解析 JSON）。 */
     val currentPreconditions: List<String> = emptyList(),
+    /**
+     * C2 加权 cloze 卡本轮抽中的挖空（按 index 升序）。仅当 [pendingAction] 是 C2 ShowCard 时非空。
+     * 在 VM 内用 [ClozeParser.weightedSample] 抽样（不在 Composable 解析/采样）；每张卡稳定一次。
+     */
+    val currentClozeBlanks: List<ClozeItem> = emptyList(),
     val isSessionEnd: Boolean = false,
     /** "Fresh" / "Resumed" / "FallbackToFresh"；UI 可在调试模式 toast 提示，生产可忽略 */
     val initType: String? = null
@@ -213,6 +220,19 @@ class RouterReviewViewModel(
                 Gson().fromJson<List<String>>(f.preconditions, stringListType) ?: emptyList()
             }.getOrDefault(emptyList())
         }.orEmpty()
+
+        // C2 加权 cloze：抽 min(3, 总挖空数) 个空，mustBlank 优先（weightedSample 内部保证）
+        val clozeBlanks: List<ClozeItem> = if (
+            action is ReviewRouter.NextAction.ShowCard &&
+            action.cardType == CardType.C2_Cloze &&
+            formula != null
+        ) {
+            val items = ClozeParser.parse(formula.clozeData)
+            ClozeParser.weightedSample(items, n = minOf(CLOZE_BLANKS_TARGET, items.size))
+        } else {
+            emptyList()
+        }
+
         _uiState.update {
             it.copy(
                 isLoading           = false,
@@ -220,6 +240,7 @@ class RouterReviewViewModel(
                 currentFormula      = formula,
                 currentSubCard      = subCard,
                 currentPreconditions = preconditions,
+                currentClozeBlanks  = clozeBlanks,
                 isSessionEnd        = action is ReviewRouter.NextAction.SessionEnd,
                 initType            = initType ?: it.initType
             )
@@ -227,6 +248,9 @@ class RouterReviewViewModel(
     }
 
     companion object {
+        /** C2 每张卡目标挖空数（自适应 min(此值, 公式总挖空数)，用户拍板 2026-05-28）。 */
+        private const val CLOZE_BLANKS_TARGET = 3
+
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {

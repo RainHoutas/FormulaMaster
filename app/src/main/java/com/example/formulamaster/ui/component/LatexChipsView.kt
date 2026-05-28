@@ -71,6 +71,8 @@ import com.google.gson.Gson
  *
  * @param items LaTeX 字符串列表
  * @param selectable 是否允许多选交互；false 时退化为只读展示
+ * @param singleSelect 仅 selectable=true 时生效：true → 单选（点新 chip 自动取消旧选），
+ *   回调上报的集合至多 1 个元素。供 C2 cloze 卡每个挖空单选用。默认 false（多选，原行为）。
  * @param onSelectionChanged 选中索引集变化回调（仅 selectable=true 时触发）
  */
 @Composable
@@ -78,6 +80,7 @@ fun LatexChipsView(
     items: List<String>,
     modifier: Modifier = Modifier,
     selectable: Boolean = false,
+    singleSelect: Boolean = false,
     onSelectionChanged: (Set<Int>) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -137,12 +140,13 @@ fun LatexChipsView(
         }
     }
 
-    // ── 渲染：items / 主题 / selectable 变化时重载 HTML ─────────────────────
-    LaunchedEffect(webView, items, isDark, selectable) {
+    // ── 渲染：items / 主题 / selectable / singleSelect 变化时重载 HTML ───────
+    LaunchedEffect(webView, items, isDark, selectable, singleSelect) {
         val gson = Gson()
         val html = template
             .replace("{{ITEMS_JSON}}", gson.toJson(items))
             .replace("{{INTERACTIVE}}", if (selectable) "true" else "false")
+            .replace("{{SINGLE_SELECT}}", if (singleSelect) "true" else "false")
             .replace("{{INTERACTIVE_CLASS}}", if (selectable) "interactive" else "")
             .replace("{{PRIMARY}}", primary.toHexCss())
             .replace("{{OUTLINE}}", outline.toHexCss())

@@ -79,6 +79,7 @@
 <script>
   var items = {{ITEMS_JSON}};
   var interactive = {{INTERACTIVE}};
+  var singleSelect = {{SINGLE_SELECT}};
   var container = document.getElementById('chips');
   var selected = new Set();
 
@@ -122,9 +123,18 @@
     if (interactive) {
       chip.addEventListener('click', function() {
         if (selected.has(i)) {
+          // 再点已选：取消（单选模式也允许清空，让用户可改主意）
           selected.delete(i);
           chip.classList.remove('selected');
         } else {
+          if (singleSelect) {
+            // 单选：先清掉之前选中的（最多一个）
+            selected.forEach(function(prev) {
+              var prevChip = container.querySelector('.chip[data-idx="' + prev + '"]');
+              if (prevChip) prevChip.classList.remove('selected');
+            });
+            selected.clear();
+          }
           selected.add(i);
           chip.classList.add('selected');
         }
