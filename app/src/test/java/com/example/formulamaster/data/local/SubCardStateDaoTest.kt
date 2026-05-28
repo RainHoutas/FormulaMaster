@@ -183,6 +183,77 @@ class SubCardStateDaoTest {
         assertNull(dao.get("f1", "c1"))
     }
 
+    // ── Task 2.6：冲刺/通知用聚合查询 ─────────────────────────────────────────
+
+    @Test
+    fun `halveStabilityAbove 仅砍高于阈值的子卡`() = runTest {
+        seedFormula("f1")
+        dao.insert(fakeSubCard("f1", CardType.C1_Recognition, stability = 20.0)) // > 15 → 砍
+        dao.insert(fakeSubCard("f1", CardType.C2_Cloze,        stability = 15.0)) // == 15 → 不砍（严格 >）
+        dao.insert(fakeSubCard("f1", CardType.C3_Precondition, stability = 8.0))  // < 15 → 不砍
+
+        dao.halveStabilityAbove(15.0)
+
+        assertEquals(10.0, dao.get("f1", "c1")!!.stability, 1e-9)
+        assertEquals(15.0, dao.get("f1", "c2")!!.stability, 1e-9)
+        assertEquals(8.0, dao.get("f1", "c3")!!.stability, 1e-9)
+    }
+
+    @Test
+    fun `resetReviewTimeForFormulas 只重置集合内公式的所有子卡`() = runTest {
+        seedFormula("f1")
+        seedFormula("f2")
+        seedFormula("f3")
+        listOf("f1", "f2", "f3").forEach { fid ->
+            dao.insertAll(CardType.entries.map { fakeSubCard(fid, it, nextReviewTime = 1_000L) })
+        }
+
+        val resetTo = 9_999L
+        dao.resetReviewTimeForFormulas(listOf("f1", "f3"), resetTo)
+
+        dao.getByFormulaId("f1").forEach { assertEquals(resetTo, it.nextReviewTime) }
+        dao.getByFormulaId("f3").forEach { assertEquals(resetTo, it.nextReviewTime) }
+        dao.getByFormulaId("f2").forEach { assertEquals(1_000L, it.nextReviewTime) } // 不在集合 → 不变
+    }
+
+    @Test
+    fun `resetReviewTimeForFormulas 空集合不动任何记录`() = runTest {
+        seedFormula("f1")
+        dao.insertAll(CardType.entries.map { fakeSubCard("f1", it, nextReviewTime = 1_000L) })
+
+        dao.resetReviewTimeForFormulas(emptyList(), 9_999L)
+
+        dao.getByFormulaId("f1").forEach { assertEquals(1_000L, it.nextReviewTime) }
+    }
+
+    @Test
+    fun `getEarliestNextReviewTime 取最小值；空表返回 null`() = runTest {
+        assertNull(dao.getEarliestNextReviewTime())
+
+        seedFormula("f1")
+        dao.insert(fakeSubCard("f1", CardType.C1_Recognition, nextReviewTime = 5_000L))
+        dao.insert(fakeSubCard("f1", CardType.C2_Cloze,        nextReviewTime = 2_000L))
+        dao.insert(fakeSubCard("f1", CardType.C3_Precondition, nextReviewTime = 8_000L))
+
+        assertEquals(2_000L, dao.getEarliestNextReviewTime())
+    }
+
+    @Test
+    fun `countDueFormulas 按公式去重计数`() = runTest {
+        seedFormula("f1")
+        seedFormula("f2")
+        val now = 1_000_000L
+        // f1 两张子卡都到期 → 计 1
+        dao.insert(fakeSubCard("f1", CardType.C1_Recognition, nextReviewTime = now - 1))
+        dao.insert(fakeSubCard("f1", CardType.C2_Cloze,        nextReviewTime = now))
+        // f2 一张到期一张未来 → 计 1
+        dao.insert(fakeSubCard("f2", CardType.C1_Recognition, nextReviewTime = now - 1))
+        dao.insert(fakeSubCard("f2", CardType.C2_Cloze,        nextReviewTime = now + 10_000))
+
+        assertEquals(2, dao.countDueFormulas(now))
+        assertEquals(0, dao.countDueFormulas(now - 1_000_000)) // 都没到期
+    }
+
     // ── 工具 ────────────────────────────────────────────────────────────────
 
     private suspend fun seedFormula(id: String) =

@@ -342,6 +342,21 @@ class ReviewEventProcessorTest {
                 )
             }
         }
+        override suspend fun halveStabilityAbove(threshold: Double) {
+            store.keys.forEach { k ->
+                val v = store[k]!!
+                if (v.stability > threshold) store[k] = v.copy(stability = v.stability / 2)
+            }
+        }
+        override suspend fun resetReviewTimeForFormulas(formulaIds: List<String>, currentTime: Long) {
+            store.keys.filter { it.first in formulaIds }.forEach { k ->
+                store[k] = store[k]!!.copy(nextReviewTime = currentTime)
+            }
+        }
+        override suspend fun getEarliestNextReviewTime(): Long? =
+            store.values.minOfOrNull { it.nextReviewTime }
+        override suspend fun countDueFormulas(currentTime: Long): Int =
+            store.values.filter { it.nextReviewTime <= currentTime }.map { it.formulaId }.distinct().size
     }
 
     private class FakeReviewLogDao : ReviewLogDao {

@@ -1,6 +1,7 @@
 package com.example.formulamaster.domain
 
 import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.local.dao.SubCardStateDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -47,6 +48,43 @@ object SprintModeManager {
         // 批量写库（Room 单次 UPDATE，性能 O(N)）
         studyStateDao.halveStabilityAbove(STABILITY_THRESHOLD)
         studyStateDao.resetMasteredReviewTime(currentTimeMs)
+    }
+
+    /**
+     * Sprint 2 Task 2.6：子卡版冲刺模式（母卡退役后接管 [applyIfNeeded]）。
+     *
+     * 与母卡版的差异只在"已掌握"判定：母卡有 learningState 列可直接 `WHERE = 3`，
+     * 子卡无此列，"已掌握"是派生属性。故先**快照**全量子卡用
+     * [SubCardAggregator] 算出 mastered 公式集合，**再**砍稳定性——保持母卡时代
+     * "mastered 判定独立于本次砍半"的语义（砍半若把某公式 AVG 压到 30 以下，
+     * 也不影响它本轮是否被重置）。
+     *
+     * 顺序固定为「先算 mastered → 再 halve → 再 reset」，不可调换。
+     *
+     * ⚠ mastered 判定依赖 [SubCardAggregator] 的阈值；其中 `MIN(stability) < 1.0`
+     * 边界尚待用户拍板（见 SubCardAggregator KDoc）。
+     */
+    suspend fun applyIfNeededSubCards(
+        subCardDao: SubCardStateDao,
+        targetExamDate: Long,
+        currentTimeMs: Long = System.currentTimeMillis()
+    ) = withContext(Dispatchers.IO) {
+        val remainingDays = (targetExamDate - currentTimeMs) / DAY_MS
+        if (remainingDays > SPRINT_THRESHOLD_DAYS) return@withContext
+
+        // 1. 先快照算出 mastered 公式（砍半前）
+        val snapshot = subCardDao.getAllStatesOnce()
+        val masteredFormulaIds = SubCardAggregator.deriveAll(snapshot)
+            .filterValues { it.learningState == SubCardAggregator.STATE_MASTERED }
+            .keys.toList()
+
+        // 2. 砍稳定性
+        subCardDao.halveStabilityAbove(STABILITY_THRESHOLD)
+
+        // 3. 把 mastered 公式拉回复习池
+        if (masteredFormulaIds.isNotEmpty()) {
+            subCardDao.resetReviewTimeForFormulas(masteredFormulaIds, currentTimeMs)
+        }
     }
 
     /** 当前是否处于冲刺期（供 UI 展示警告横幅使用） */

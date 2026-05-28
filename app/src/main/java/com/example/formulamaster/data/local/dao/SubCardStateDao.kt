@@ -77,4 +77,39 @@ interface SubCardStateDao {
         minStability: Double,
         nextReviewTime: Long
     )
+
+    // ── Sprint 2 Task 2.6：母卡退役后，冲刺模式 / 通知改读子卡 ──────────────────
+
+    /**
+     * 冲刺模式：批量把 `stability > threshold` 的子卡 stability 减半。
+     * 母卡 [StudyStateDao.halveStabilityAbove] 的逐卡等价物——本操作语义与母卡一致
+     * （纯逐卡阈值，不依赖 learningState），可机械迁移。
+     */
+    @Query("UPDATE sub_card_states SET stability = stability / 2 WHERE stability > :threshold")
+    suspend fun halveStabilityAbove(threshold: Double)
+
+    /**
+     * 把给定公式集合的**所有子卡** nextReviewTime 重置为 [currentTime]（拉回复习池）。
+     *
+     * 替代母卡 [StudyStateDao.resetMasteredReviewTime]：母卡靠 `WHERE learningState = 3` 直接
+     * 过滤，但 sub_card_states 无 learningState 列，"已掌握"是派生属性
+     * （[com.example.formulamaster.domain.SubCardAggregator]）。故由调用方先用聚合器算出
+     * mastered 公式集合，再调本方法重置——SQL 只负责按 formulaId 批量写。
+     */
+    @Query("UPDATE sub_card_states SET nextReviewTime = :currentTime WHERE formulaId IN (:formulaIds)")
+    suspend fun resetReviewTimeForFormulas(formulaIds: List<String>, currentTime: Long)
+
+    /**
+     * 通知：最早到期的子卡时间（`MIN(nextReviewTime)`）。无任何子卡时返回 null。
+     * 供 DailyReminderWorker 判断"今日是否有复习项"用。
+     */
+    @Query("SELECT MIN(nextReviewTime) FROM sub_card_states")
+    suspend fun getEarliestNextReviewTime(): Long?
+
+    /**
+     * 通知：到期（`nextReviewTime <= :currentTime`）的**去重公式**数量。
+     * 一条公式哪怕多张子卡到期也只计 1，用于提醒文案"今日 N 个公式待复习"。
+     */
+    @Query("SELECT COUNT(DISTINCT formulaId) FROM sub_card_states WHERE nextReviewTime <= :currentTime")
+    suspend fun countDueFormulas(currentTime: Long): Int
 }
