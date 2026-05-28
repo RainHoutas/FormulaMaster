@@ -241,10 +241,14 @@ related:
     - ④ 同日续接（评一张卡后 force-stop App → 重启进复习 Tab 从 cursor 续考，不是从头来） ✓
   - **Done 标准**：真机三轮回归（同日续接 / 跨日重开 / blocked 恢复路径），BUILD SUCCESSFUL
 
-- [ ] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）
+- [~] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）— 代码完成，待真机视觉验收（2026-05-28）
   
   - 用户先看公式名 → 点"看答案"露出完整公式 + 条件 + 用途 → 评分 1/2/3/4
-  - 视觉细节做时再问
+  - ✅ 视觉决策（2026-05-28）：露出「公式 + 条件 + 用途 + 口诀」（mnemonic 有值才显示）；同卡内分段 + 小标题 + 分隔线
+  - ✅ `RouterReviewScreen.C1RecognitionPane`（专属露出布局，整段可滚动）+ 抽出共用 `CardHeaderChips`/`RatingRow`；C2-C6 继续走通用 `ShowCardPane`
+  - ✅ `RouterReviewViewModel`：UiState 加 `currentPreconditions`，VM 内解析 preconditions JSON（不在 Composable 碰 JSON）
+  - ✅ compileDebugKotlin + 283 单测全绿（commit 3b7df0a）
+  - ⏳ **待真机**：构造 due 的 C1 子卡 → 看露出三段布局；挑 mnemonic 非空公式确认口诀段渲染
 
 - [ ] **Task 2.3 C2 加权 cloze 卡** — 复用 Sprint 1 Task 1.4 的 `weightedSample`
   
@@ -266,6 +270,9 @@ related:
 
 - [ ] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3
   
+  - ✅ **预备件（2026-05-28，commit a23071a）**：`domain/SubCardAggregator.kt` 纯函数 + 14 单测
+    —— 把子卡列表派生成整体进度（learningState / stability均值 / nextReviewTime最早 / lapses和）；
+    零真机可验；接线留待真机阶段。⚠ 待拍板：结业初始 stability=1.0 按字面 `<1.0` 判「复习中」而非「学习中」
   - **ReviewViewModel**：`submitReview` 仅写 `sub_card_states`，删除 `study_states` 更新逻辑
   - **MemoryViewModel + MemoryScreen**：bucket 算法改为读 `sub_card_states` 聚合
     - `learningState` 派生：`MIN(stability) < 1.0 → 1`；`AVG > 30 → 3`；其余 `2`
