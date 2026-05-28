@@ -250,13 +250,21 @@ related:
   - ✅ compileDebugKotlin + 283 单测全绿（commit 3b7df0a）
   - ⏳ **待真机**：构造 due 的 C1 子卡 → 看露出三段布局；挑 mnemonic 非空公式确认口诀段渲染
 
-- [ ] **Task 2.3 C2 加权 cloze 卡** — 复用 Sprint 1 Task 1.4 的 `weightedSample`
+- [~] **Task 2.3 C2 加权 cloze 卡** — 代码完成，待真机视觉验收（2026-05-28，commit d9d8c57）
   
-  - 每次抽 2-3 空（具体数量做时定）+ chip 多选填入（禁文字输入）
+  - ✅ 设计拍板（2026-05-28）：挖空数**自适应 min(3,总数)**，mustBlank 优先；chip **单选**填入；
+    系统**自动判对错→映射评分**（全对=4/有错=1，无需用户自评）
+  - ✅ `domain/ClozeGrading.kt` 纯函数判分 + 6 单测；VM 内 `weightedSample(min(3,总数))` 抽样
+  - ✅ `C2ClozePane`：每空一组单选 chip → 提交 → 逐空 ✓/✗ + 错空正确答案 → 继续
+  - ✅ `LatexChipsView` 加向后兼容 `singleSelect`（默认 false，FeedbackDialog 不受影响）+ 模板 JS 单选
+  - ⚠ C2 全对→4 按选项字面；chip 是识别非回忆，若觉太松改 `RATING_ALL_CORRECT=3`
+  - ⏳ **待真机**：chip 单选交互 / 判分 / 多个 LatexChipsView 的 WebView 高度与性能
 
-- [ ] **Task 2.4 C3 条件先行卡**（2 秒强制展示条件 + 用途）
+- [~] **Task 2.4 C3 条件先行卡**（强制展示条件 + 用途）— 代码完成，待真机验收（2026-05-28，commit d9d8c57）
   
-  - 进入卡 2 秒倒计时不可点击 → 展示完整公式后才能评分
+  - ✅ 设计拍板（2026-05-28）：倒计时 **3 秒**锁定条件+用途 → 解锁 → 看答案 → 露公式 → 1/2/3/4 自评
+  - ✅ `C3PreconditionPane`：`LaunchedEffect` 倒计时门 + 解锁后看答案 + 复用 `RatingRow`
+  - ⏳ **待真机**：倒计时门体验 / 解锁后流程
 
 - [ ] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）
   
