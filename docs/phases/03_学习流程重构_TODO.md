@@ -270,9 +270,16 @@ related:
 
 - [ ] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3
   
-  - ✅ **预备件（2026-05-28，commit a23071a）**：`domain/SubCardAggregator.kt` 纯函数 + 14 单测
+  - ✅ **预备件 1（2026-05-28，commit a23071a）**：`domain/SubCardAggregator.kt` 纯函数 + 14 单测
     —— 把子卡列表派生成整体进度（learningState / stability均值 / nextReviewTime最早 / lapses和）；
     零真机可验；接线留待真机阶段。⚠ 待拍板：结业初始 stability=1.0 按字面 `<1.0` 判「复习中」而非「学习中」
+  - ✅ **预备件 2（2026-05-28，commit 406015a）**：子卡 DAO 聚合方法 + SprintMode 子卡版 + 8 单测
+    —— `SubCardStateDao` 加 `halveStabilityAbove` / `resetReviewTimeForFormulas` /
+    `getEarliestNextReviewTime` / `countDueFormulas`；`SprintModeManager.applyIfNeededSubCards`
+    用聚合器「先快照算 mastered → 砍半 → 重置」保持母卡语义。全 additive，未接线。
+  - ⏳ **剩余接线（需真机回归）**：MemoryViewModel/Screen 改读子卡 + bucket 用 SubCardAggregator；
+    MainActivity 冲刺改调 `applyIfNeededSubCards`；DailyReminderWorker 改读子卡；TestViewModel 默认评 c1；
+    `StudyStateDao` 标 @Deprecated 停写
   - **ReviewViewModel**：`submitReview` 仅写 `sub_card_states`，删除 `study_states` 更新逻辑
   - **MemoryViewModel + MemoryScreen**：bucket 算法改为读 `sub_card_states` 聚合
     - `learningState` 派生：`MIN(stability) < 1.0 → 1`；`AVG > 30 → 3`；其余 `2`
