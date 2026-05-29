@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeGrading
+import com.example.formulamaster.domain.ClozeSkeletonBuilder
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
 import com.example.formulamaster.ui.component.LatexChipsView
@@ -119,6 +120,7 @@ fun RouterReviewScreen(
                             C2ClozePane(
                                 action = action,
                                 formulaTitle = title,
+                                formulaLatex = latex,
                                 blanks = uiState.currentClozeBlanks,
                                 isReinforced = isReinforced,
                                 onRate = viewModel::rate,
@@ -326,6 +328,7 @@ private fun SectionLabel(text: String) {
 private fun C2ClozePane(
     action: ReviewRouter.NextAction.ShowCard,
     formulaTitle: String,
+    formulaLatex: String,
     blanks: List<ClozeItem>,
     isReinforced: Boolean,
     onRate: (Int) -> Unit,
@@ -352,6 +355,21 @@ private fun C2ClozePane(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(16.dp))
+
+        // ── 公式骨架（带编号方框的洞，选中 chip 实时填入）──────────────────────
+        // 读 selections 快照 → 选择变化即重算骨架 → MathFormulaView 重渲染（实时填入预览）
+        if (formulaLatex.isNotBlank()) {
+            val skeleton = ClozeSkeletonBuilder.build(formulaLatex, blanks, selections.toMap())
+            ElevatedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                MathFormulaView(
+                    latex = skeleton,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
 
         val submitted = result != null
         blanks.forEachIndexed { i, blank ->
@@ -417,7 +435,7 @@ private fun C2ClozePane(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = if (r.allCorrect) "全部正确 · 系统评定 4（一眼出）"
+                    text = if (r.allCorrect) "全部正确 · 系统评定 4（秒出）"
                     else "有错 · 系统评定 1（不会）",
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyMedium,
@@ -672,7 +690,7 @@ private fun RatingRow(onRate: (Int) -> Unit) {
             RatingButton(label = "1 不会", onClick = { onRate(1) }, modifier = Modifier.weight(1f))
             RatingButton(label = "2 模糊", onClick = { onRate(2) }, modifier = Modifier.weight(1f))
             RatingButton(label = "3 想起", onClick = { onRate(3) }, modifier = Modifier.weight(1f))
-            RatingButton(label = "4 一眼出", onClick = { onRate(4) }, modifier = Modifier.weight(1f))
+            RatingButton(label = "4 秒出", onClick = { onRate(4) }, modifier = Modifier.weight(1f))
         }
     }
 }

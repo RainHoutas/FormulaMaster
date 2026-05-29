@@ -241,30 +241,34 @@ related:
     - ④ 同日续接（评一张卡后 force-stop App → 重启进复习 Tab 从 cursor 续考，不是从头来） ✓
   - **Done 标准**：真机三轮回归（同日续接 / 跨日重开 / blocked 恢复路径），BUILD SUCCESSFUL
 
-- [~] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）— 代码完成，待真机视觉验收（2026-05-28）
+- [x] **Task 2.2 C1 识别卡**（公式名 → 完整公式 + 条件 + 用途）— ✅ 真机验收通过（2026-05-29）
   
   - 用户先看公式名 → 点"看答案"露出完整公式 + 条件 + 用途 → 评分 1/2/3/4
   - ✅ 视觉决策（2026-05-28）：露出「公式 + 条件 + 用途 + 口诀」（mnemonic 有值才显示）；同卡内分段 + 小标题 + 分隔线
   - ✅ `RouterReviewScreen.C1RecognitionPane`（专属露出布局，整段可滚动）+ 抽出共用 `CardHeaderChips`/`RatingRow`；C2-C6 继续走通用 `ShowCardPane`
   - ✅ `RouterReviewViewModel`：UiState 加 `currentPreconditions`，VM 内解析 preconditions JSON（不在 Composable 碰 JSON）
   - ✅ compileDebugKotlin + 283 单测全绿（commit 3b7df0a）
-  - ⏳ **待真机**：构造 due 的 C1 子卡 → 看露出三段布局；挑 mnemonic 非空公式确认口诀段渲染
+  - ✅ **真机验收（2026-05-29，分部积分公式）**：题面（标题+回想提示）→ 看答案 → 公式 KaTeX 渲染 + 适用条件项目符号 + 用途 + 💡口诀分段（小标题+分隔线）全对
 
-- [~] **Task 2.3 C2 加权 cloze 卡** — 代码完成，待真机视觉验收（2026-05-28，commit d9d8c57）
+- [x] **Task 2.3 C2 加权 cloze 卡** — ✅ 真机验收通过（2026-05-29，commit d9d8c57）
   
   - ✅ 设计拍板（2026-05-28）：挖空数**自适应 min(3,总数)**，mustBlank 优先；chip **单选**填入；
     系统**自动判对错→映射评分**（全对=4/有错=1，无需用户自评）
   - ✅ `domain/ClozeGrading.kt` 纯函数判分 + 6 单测；VM 内 `weightedSample(min(3,总数))` 抽样
   - ✅ `C2ClozePane`：每空一组单选 chip → 提交 → 逐空 ✓/✗ + 错空正确答案 → 继续
   - ✅ `LatexChipsView` 加向后兼容 `singleSelect`（默认 false，FeedbackDialog 不受影响）+ 模板 JS 单选
-  - ⚠ C2 全对→4 按选项字面；chip 是识别非回忆，若觉太松改 `RATING_ALL_CORRECT=3`
-  - ⏳ **待真机**：chip 单选交互 / 判分 / 多个 LatexChipsView 的 WebView 高度与性能
+  - ⚠ C2 全对→4 按选项字面；chip 是识别非回忆，若觉太松改 `RATING_ALL_CORRECT=3`（真机体验后用户暂未提出改动）
+  - ✅ **真机验收（2026-05-29）**：单选（✓+主色描边）/ 全对→评定4 / 有错→评定1 / 逐空✓✗ / 仅错空露出正确答案（filled只读样式）/ 多空（期望与方差 min(3,总数)=3）多 WebView 堆叠高度正常无重叠
+  - 🐛 **真机验收发现并补全（2026-05-29）**：原 C2 只列「空1/2/3+选项」**未显示公式骨架**，用户凭空选部件（旧原型 ReviewCard 与 RFC §2「展开公式→cloze候选填空」都要求带骨架）。补 `domain/ClozeSkeletonBuilder.kt` 纯函数（8 单测）：把抽中 placeholder 替换为**编号方框 \boxed{i}**（与空序号对应），C2 顶部 `MathFormulaView` 渲染骨架；用户拍板**实时填入**——选 chip 即把所选 latex 填进对应方框（所见即所得）。真机验证：①②③方框↔空1/2/3 / 实时填入 / 未挖空行完整显示 / 结果态骨架保留 / 加强卡回考卡通过
 
-- [~] **Task 2.4 C3 条件先行卡**（强制展示条件 + 用途）— 代码完成，待真机验收（2026-05-28，commit d9d8c57）
+- [x] **Task 2.4 C3 条件先行卡**（强制展示条件 + 用途）— ✅ 真机验收通过（2026-05-29，commit d9d8c57）
   
   - ✅ 设计拍板（2026-05-28）：倒计时 **3 秒**锁定条件+用途 → 解锁 → 看答案 → 露公式 → 1/2/3/4 自评
   - ✅ `C3PreconditionPane`：`LaunchedEffect` 倒计时门 + 解锁后看答案 + 复用 `RatingRow`
-  - ⏳ **待真机**：倒计时门体验 / 解锁后流程
+  - ✅ **真机验收（2026-05-29，全概率公式）**：3 秒倒计时动态 tick → 解锁「看答案」→ 露出公式 KaTeX → 自评行；流程全对
+
+- 🔧 **真机验收附带修复（2026-05-29）**：评分按钮「4 一眼出」在等宽布局下文字换行（实测高度 88px vs 其余 46px），用户拍板缩短为「**4 秒出**」；C2 结果横幅「系统评定 4（一眼出）」同步改「（秒出）」；改后实测四按钮等高 46px 单行。
+  - 踩坑沉淀：`adb screencap` 抓含交互 chip 的 WebView 画面时顶部会出现底栏文字淡重影，经用户肉眼确认**屏幕实际无此重影**——纯截屏硬件层合成 artifact，勿当真实 bug 追。
 
 - [ ] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）
   
