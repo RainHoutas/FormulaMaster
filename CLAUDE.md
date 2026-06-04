@@ -50,10 +50,12 @@ ui/theme/            → Material 3 主题
 
 ## 当前进度
 
-**阶段**：原型阶段（01）✅ + 打磨完善阶段（02）✅ 均已归档，**当前进行中：学习流程重构阶段（03）· Sprint 1**（数据基础 + Scene/Subject + 6 类子卡 schema）。
+**阶段**：原型阶段（01）✅ + 打磨完善阶段（02）✅ 均已归档，**当前：学习流程重构阶段（03）· Sprint 3 启动**。
 
-Sprint 1 已完成：Task 1.1（`UseScene` + `KaoyanSubject` + Onboarding 加"考数几"页）+ Task 1.2（`FormulaEntity` 9→18 字段 + `DerivationStep` 重写）。
-**下一个 Task**：1.3 `FormulaSubjectMap` 多对多关系表 + 查询过滤。
+- **Sprint 1 ✅**：数据基础（`FormulaEntity` 9→18 字段 + `DerivationStep` 对象数组 + `FormulaSubjectMap` 多对多 + 6 类子卡 schema + 错题反向 schema + 30 公式 MVP）
+- **Sprint 2 ✅**（commit `ea976c4` 已 push）：七步学习仪式 + 复习路由器（轮转/粘卡/加强卡/默写/同日续接）+ C1 识别 / C2 加权 cloze / C3 条件先行 三卡型 + 子卡 FSRS 为唯一真相源（母卡 study_states 退役）。320 单测全绿，真机三项回归通过。
+- **Sprint 3（进行中）**：数据就绪卡型 C4 推导 + C6 题型反查 + 错题本 UI 闭环 + 复习 C2 判错顶部着色（用户 P1）。**C5 易混延后 Sprint 4**（缺 diffExplanation 内容）。
+**下一个 Task**：3.1 C4 推导卡（开工前需问三档自评→FSRS 评分映射等二级决策）。
 
 ## 🚨 新对话开工前必读（强制顺序）
 

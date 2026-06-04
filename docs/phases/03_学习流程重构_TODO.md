@@ -331,16 +331,68 @@ related:
 
 ---
 
-## Sprint 3：互动深化（C4/C5/C6）+ 错题反向 UI（占位）
+## Sprint 3：数据就绪卡型（C4/C6）+ 错题反向 UI + C2 判错着色
 
-### Task 占位（D12=B / D13=C 已答 ✅ 2026-05-20）
+### 主题（2026-06-04 用户拍板范围）
 
-- [ ] Task 3.1 C4 推导卡（5s 推导挑战 + 自评三档：不会/查看了/推出来了）
-- [ ] Task 3.2 C5 易混辨析卡（A/B 选 + 反馈差异说明）
-- [ ] Task 3.3 C6 二阶（题型反查 → 用户从公式池**点选**）
-- [ ] Task 3.4 错题本入口（Memory Tab 二级页）+ 来源 chip + 编号输入 + 公式多选 chip
-- [ ] Task 3.5 Leech 升级：原 lapses≥4 + 新增"7 日内被错题反向标记 ≥2 次"
-- [ ] Task 3.6 单测 + 真机验收
+把已就绪数据（derivationSteps 30/30 + typicalProblems 30/30）落成两张新卡型，打通错题反向链路的 UI 闭环（后端 ErrorReportProcessor 已在 Sprint 1 完成），并修复用户提出的复习 C2 判错顶部着色痛点。
+**C5 易混辨析延后到 Sprint 4**：confusableWith 仅 10/30 且缺 `diffExplanation` 差异说明文本，属内容卡脖子，需内容工程 Track-C 先行（RFC §9.2 D12=B）。
+
+### Task 列表（6 个）
+
+- [ ] **Task 3.1 C4 推导卡**（5s 推导挑战 + 三档自评）— RFC §3.3 / §3.5 第 3 步复用 `derivationSteps`
+  - 数据就绪：30/30 公式有 `derivationSteps`（`[{latex, note}]` 对象数组）
+  - 交互蓝图：题面给「公式结论」→ 用户心里推一遍 → 倒计时门后「看推导」逐步露 DerivationStep → 三档自评
+  - ⚠ **二级决策（开工前问）**：① 三档自评（不会/查看了/推出来了）→ FSRS 评分映射（建议 1/2/4，待拍板）② 倒计时秒数（RFC 写 5s）③ 推导链一次全露还是逐步点露
+  - Done：`C4DerivationPane`（专属面板）+ VM 解析 derivationSteps；路由器把 C4 纳入 due（已有 fallback 剔除逻辑，本 Task 接入渲染）；单测覆盖评分映射
+
+- [ ] **Task 3.2 C6 题型反查卡**（看题面 → 公式池点选）— RFC D1 二阶 / D13=C
+  - 数据就绪：30/30 公式有 `typicalProblems`（教辅改编题面 JSON）
+  - 交互蓝图：展示一道 typicalProblem 题面 → 用户从**公式池点选**该题该用哪条公式（切断文字输入，RFC §3.6）→ 判对错 + 反馈
+  - ⚠ **二级决策（开工前问）**：① 候选池范围（全 30 / 同章节 / 含易混干扰项）② 单选还是多选 ③ 判对/判错后 FSRS 评分映射 ④ 选项以公式名还是公式 KaTeX 呈现
+  - Done：`C6TypicalProblemPane` + 公式池点选组件；单测覆盖判分
+
+- [ ] **Task 3.3 错题本入口 UI**（Memory Tab 二级页）— RFC §4.4=B（后端已就绪，设计 2026-06-04 用户拍板）
+  - **后端就绪**：`ErrorReportEntity` + `ErrorReportDao`(observeAll 倒序 / delete) + `ErrorReportProcessor`（Sprint 1 Task 1.6，插入即把所选公式 6 子卡 `S←MAX(S×0.5,0.5)` + 推次日刷新整点 + lapses+1）
+  - **种子真实取值**：subject = 高数 / 线代 / 概率论；chapter = 高数 8 章 / 线代 4 章 / 概率论 4 章（由 `FormulaEntity.chapter` distinct 派生）
+
+  - **① 入口**：Memory 页**右下角浮动圆形 FAB**（M3 `FloatingActionButton`，悬底栏上方）→ 进错题本二级页
+  - **② 主页**：历史错题列表（`observeAll` 倒序），行显示「来源+编号（如 历年真题 2024-18）· 高数/微分中值定理 · N 条公式」；支持删除（见 ⑤）
+  - **③ 新增表单**（全 chip / 数字键盘，零自由文字）：subject chip 单选 → chapter chip（按 subject 联动）→ sourceType chip（历年真题/模拟卷/习题集/其他）→ sourceTag 数字键盘（受限编码如 `2024-18`）→ **公式多选池** → 提交触发 `ErrorReportProcessor.process`
+  - **④ 公式多选池**：
+    - **默认按 subject 过滤 + 可切「显示全部」**
+    - 抽出共用 **`FormulaIndex`**（subject→chapter→公式 分组纯函数/索引），**Sprint 4 公式族图谱复用同一套分组**（只复用分类索引，不复用图谱可视化）
+    - **未学（无子卡）公式灰显** → 点击弹「这条还没学，去学？」→ 是则跳七步仪式；**录入表单存草稿**，学完回来续填（草稿持久化，避免离开丢选择）
+  - **⑤ 删除 = 精确可撤销（用户拍板做精确版）**：
+    - ⚠ **需加 schema 字段**：`ErrorReportEntity` 新增 `penaltySnapshotJson`，录入当下快照所选公式 6 子卡的 `(stability/nextReviewTime/lapses)` 原值；DB version bump（destructive migration，加字段便宜）
+    - 删除时弹窗「同时恢复这些公式的复习计划？[仅删记录 / 恢复计划]」+「以后都这样，不再询问」勾选
+    - 「恢复计划」按 `penaltySnapshotJson` 还原子卡（best-effort：若期间已复习过该公式，恢复会覆盖那次进度——属「撤销=回到错题录入前那一刻」语义，实装时再确认边界）
+    - **设置页加选项**「删除错题时：每次询问 / 仅删记录 / 恢复计划」（持久化到 `AppPreference`）
+  - ⚠ **开工前最后确认**：FormulaIndex 抽取边界 + penaltySnapshot 的 best-effort 覆盖语义
+  - Done：FAB→列表→新增表单→公式多选（灰显未学+草稿续填）→提交次日重现真机验过；删除撤销精确还原快照验过；设置项生效
+
+- [ ] **Task 3.4 Leech 升级**（错题反向联动）— RFC 报告 §7
+  - 现状：`isLeech = lapses >= 4`（MemoryScreen）
+  - 升级：新增「7 日内被错题反向标记 ≥ 2 次」也判 leech
+  - ⚠ 依赖 Task 3.3（错题本写入 ErrorReport 后才有「被标记」信号）；需查 `ErrorReportDao` 按 formulaId + 时间窗计数
+  - Done：聚合逻辑加时间窗计数；单测覆盖两条 leech 触发路径
+
+- [ ] **Task 3.5 复习 C2 判错顶部公式骨架着色**（用户 P1，2026-06-04）— 见 [改进点池](../改进点池.md)「已纳入」
+  - 现状：`C2ClozePane` 提交后只在下方逐空标 ✓/✗，顶部骨架只实时填入不标对错
+  - 改造：`ClozeSkeletonBuilder` 加「判分态」重载（传 `perBlankCorrect`），顶部方框按对错着色（对=主色 / 错=错误色，错空可叠正确答案）；顺带覆盖七步仪式 `MiniC2Card` 结果态
+  - ⚠ **二级决策（开工前问）**：着色方案（`\colorbox` 整框 / `\textcolor` 文字 / 边框色）+ 错空是显示用户答案还是正确答案
+  - Done：KaTeX 着色渲染真机验过 + `ClozeSkeletonBuilderTest` 加判分态用例
+
+- [ ] **Task 3.6 单测 + 真机验收**
+  - C4/C6 卡型真机走通（含路由器轮转纳入新卡型）
+  - 错题本闭环真机：新增错题 → 选公式 → 次日该公式 due 重现
+  - C2 判错着色真机截图确认
+  - 全套单测 ≥ 现 320 + 新增覆盖
+
+### Sprint 3 留作 Sprint 4 起点的债
+
+- **C5 易混辨析卡**：需先补 `diffExplanation` 内容（10-15 对易混，约 3-4h 内容工程）+ 可能新增 `confusable_pairs` 表（RFC §9.2 D12）
+- 改进点池其余 P1/P2（全局切换打磨 / 六维状态人话化 / 震动反馈 等）按需排期
 
 ---
 
