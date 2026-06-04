@@ -74,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
                     //   - 外键级联：FormulaEntity 删除时同步清理映射行
                     // 学习流程重构 Sprint 1 Task 1.5：v5 → v6 新增 sub_card_states 表
                     //   - 子卡级 FSRS 状态，复合主键 (formulaId, cardType)
-                    //   - 母 study_states 保留作公式整体进度展示，FSRS 调度切换到 sub_card_states
+                    //   - 母 study_states：Task 2.6（2026-05-29）已退役，仅保留表兼容老库，全部读写迁到 sub_card_states
                     // 学习流程重构 Sprint 1 Task 1.6：v6 → v7 新增 error_reports 表
                     //   - 错题反向链路记录；createdAt 索引便于错题本按时间倒序展示
                     //   - 写入由 ErrorReportProcessor 统一触发（同步 SubCardState 砍半 + 推次日）

@@ -19,10 +19,10 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
  * - `lapses`：`SUM(sub_cards.lapses)`
  * - `stability`：`AVG(sub_cards.stability)`
  *
- * ⚠ **待用户拍板的边界**：结业时子卡初始 `stability = 1.0`，与 [LEARNING_STABILITY_THRESHOLD]
- * 严格小于号比较时**不命中**，故刚激活的公式整体被判为「复习中(2)」而非「学习中(1)」。
- * 当前严格按 TODO 字面（`< 1.0`）实现；若需"刚激活→学习中"，把阈值比较改为 `<=` 即可
- * （见 [SubCardAggregatorTest] 中钉住此行为的用例）。
+ * ✅ **边界已拍板（2026-05-29）**：结业时子卡初始 `stability = 1.0`，严格 `< 1.0` 比较**不命中**，
+ * 故刚结业的公式整体判「复习中(2)」。这是**有意为之**——七步学习仪式 = 学习阶段，
+ * 结业即「学完、离开学习阶段、进入复习轮转」，故「学习中(1)」专指仍未结业（在七步仪式内）的状态。
+ * 保持 `< 1.0`，勿改为 `<=`（见 [SubCardAggregatorTest] 中钉住此行为的用例）。
  */
 object SubCardAggregator {
 

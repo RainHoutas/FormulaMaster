@@ -10,7 +10,7 @@ import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.AppSettings
 import com.example.formulamaster.data.RecognizerPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
-import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.worker.DailyReminderWorker
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerErrorClassifier
@@ -43,7 +43,7 @@ class SettingsViewModel(
     private val preference: RecognizerPreference,
     private val appPreference: AppPreference,
     private val ocrFeedbackDao: OcrFeedbackDao,
-    private val studyStateDao: StudyStateDao,
+    private val subCardStateDao: SubCardStateDao,
     private val appContext: Context
 ) : ViewModel() {
 
@@ -87,15 +87,16 @@ class SettingsViewModel(
             appPreference.setDailyRefreshTime(hour, minute)
             // Sprint 2 Task 2.3：切换刷新时刻时，把库内既有 nextReviewTime 重新截断到新整点
             // 仅改时分秒，保留原日期（与用户期望"天数不变，只用该当日复习时间"一致）
+            // Task 2.6（2026-05-29）：母卡退役，改作用于全部子卡
             val zone = ZoneId.systemDefault()
-            val states = studyStateDao.getAllStatesOnce()
-            states.forEach { state ->
-                if (state.nextReviewTime <= 0L) return@forEach
+            val subCards = subCardStateDao.getAllStatesOnce()
+            subCards.forEach { sub ->
+                if (sub.nextReviewTime <= 0L) return@forEach
                 val newTime = ReviewScheduler.truncateToRefreshHour(
-                    state.nextReviewTime, hour, minute, zone
+                    sub.nextReviewTime, hour, minute, zone
                 )
-                if (newTime != state.nextReviewTime) {
-                    studyStateDao.setNextReviewTime(state.formulaId, newTime)
+                if (newTime != sub.nextReviewTime) {
+                    subCardStateDao.update(sub.copy(nextReviewTime = newTime))
                 }
             }
             // 同步重排每日复习提醒到新刷新时刻（UPDATE 策略，幂等）
@@ -283,7 +284,7 @@ class SettingsViewModel(
                     preference = AppContainer.recognizerPreference(app),
                     appPreference = AppContainer.appPreference(app),
                     ocrFeedbackDao = db.ocrFeedbackDao(),
-                    studyStateDao = db.studyStateDao(),
+                    subCardStateDao = db.subCardStateDao(),
                     appContext = app
                 ) as T
             }

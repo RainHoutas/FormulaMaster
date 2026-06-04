@@ -8,13 +8,15 @@ import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
-import com.example.formulamaster.data.local.dao.StudyStateDao
+import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.repository.FormulaRepository
+import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.SprintModeManager
+import com.example.formulamaster.domain.SubCardAggregator
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -51,14 +53,15 @@ data class TestUiState(
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 //
 // 测试模块（严测）核心状态机：
-//   - 数据源：已掌握 (learningState == 3) 的公式
+//   - 数据源：已掌握的公式（Task 2.6：由 SubCardAggregator 从子卡派生 learningState==3）
 //   - 会话队列首次加载后冻结，防止评分落库后列表跳动
 //   - 答题区状态（answerPieces）上升到 VM，输入组件切换（手写→键盘→结构化）时
 //     下层组件只需向 VM 回传 LaTeX 片段，VM 自身无关输入方式
+//   - Task 2.6：判分写 c1（识别）子卡（母卡退役）
 
 class TestViewModel(
     private val repository: FormulaRepository,
-    private val studyStateDao: StudyStateDao,
+    private val subCardStateDao: SubCardStateDao,
     private val reviewLogDao: ReviewLogDao,
     private val ocrFeedbackDao: OcrFeedbackDao,
     private val appPreference: AppPreference
@@ -86,14 +89,17 @@ class TestViewModel(
         viewModelScope.launch {
             combine(
                 repository.getAll(),
-                studyStateDao.getMasteredFormulas()
-            ) { formulas, states ->
+                subCardStateDao.getAllStates()
+            ) { formulas, subCards ->
                 val formulaMap = formulas.associateBy { it.formulaId }
-                states.mapNotNull { state ->
-                    formulaMap[state.formulaId]?.let { formula ->
-                        FormulaWithState(formula, state)
+                // Task 2.6：从子卡聚合派生整体进度，仅取「已掌握(3)」公式入测试队列
+                SubCardAggregator.deriveAll(subCards)
+                    .filterValues { it.learningState == SubCardAggregator.STATE_MASTERED }
+                    .mapNotNull { (formulaId, derived) ->
+                        formulaMap[formulaId]?.let { formula ->
+                            FormulaWithState(formula, derived)
+                        }
                     }
-                }
             }.collect { queue ->
                 if (sessionItems == null) {
                     sessionItems = queue
@@ -133,15 +139,18 @@ class TestViewModel(
         isCorrect: Boolean,
         costTimeMs: Long
     ) {
-        val studyState = item.studyState ?: return
         val rating = if (isCorrect) 4 else 1
         val nowMs = System.currentTimeMillis()
+        val formulaId = item.formula.formulaId
 
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. FSRS 调度（测试模式）
+            // Task 2.6：测试判分落到 c1（识别）子卡（母卡退役）
+            val c1 = subCardStateDao.get(formulaId, CardType.C1_Recognition.code) ?: return@launch
+
+            // 1. FSRS 调度（测试模式，子卡重载）
             val appSettings = appPreference.settings.value
             val result = ReviewScheduler.calculate(
-                current       = studyState,
+                current       = c1,
                 rating        = rating,
                 isTestMode    = true,
                 currentTimeMs = nowMs,
@@ -150,18 +159,17 @@ class TestViewModel(
             )
 
             // 2. 连续好评计数：出错强制降级时清零，正确时保留
-            val newConsecutive = if (rating == 1) 0 else studyState.consecutiveGoodReviews
+            val newConsecutive = if (rating == 1) 0 else c1.consecutiveGoodReviews
 
-            // 3. 更新 StudyStateEntity
-            studyStateDao.update(
-                studyState.copy(
-                    learningState          = result.newLearningState,
+            // 3. 更新 c1 子卡
+            subCardStateDao.update(
+                c1.copy(
                     difficulty             = result.newDifficulty,
                     stability              = result.newStability,
                     lastReviewTime         = nowMs,
                     nextReviewTime         = result.nextReviewTime,
                     lapses                 = result.newLapses,
-                    totalReviews           = studyState.totalReviews + 1,
+                    totalReviews           = c1.totalReviews + 1,
                     consecutiveGoodReviews = newConsecutive
                 )
             )
@@ -227,8 +235,11 @@ class TestViewModel(
     // 仅推后 nextReviewTime，不改 stability/difficulty/lapses（已由 submitJudgment 正常落库）。
     fun postponeByWeek(formulaId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val s = studyStateDao.getByFormulaId(formulaId) ?: return@launch
-            studyStateDao.setNextReviewTime(formulaId, s.nextReviewTime + 7 * 86_400_000L)
+            // Task 2.6：母卡退役，改为把该公式的全部子卡 nextReviewTime 各 +1 周
+            val subs = subCardStateDao.getByFormulaId(formulaId)
+            subs.forEach { sub ->
+                subCardStateDao.update(sub.copy(nextReviewTime = sub.nextReviewTime + 7 * 86_400_000L))
+            }
         }
     }
 
@@ -241,7 +252,7 @@ class TestViewModel(
                 val db = AppContainer.appDatabase(app)
                 return TestViewModel(
                     FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
-                    db.studyStateDao(),
+                    db.subCardStateDao(),
                     db.reviewLogDao(),
                     db.ocrFeedbackDao(),
                     AppContainer.appPreference(app)

@@ -6,10 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
-import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.local.entity.FormulaEntity
-import com.example.formulamaster.data.local.entity.StudyStateEntity
 import com.example.formulamaster.data.local.entity.SubCardStateEntity
 import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.CardType
@@ -36,10 +34,9 @@ import kotlinx.coroutines.launch
  *    都是从 [FormulaEntity] 派生出的 UI 直接消费的结构（避免 Composable 内部重复 JSON 解析）
  *  - [step7] 维护巩固迷你卡序列的状态机（mini-card 三选 + 重做队列）
  *
- * 结业时 [completeRitual] 在 IO 线程：
- *  1. 初始化 6 张 [SubCardStateEntity]（stability=1.0, nextReviewTime=次日刷新整点）
- *  2. **Plan I 双写过渡**：同时初始化 [StudyStateEntity]，保证 Memory Tab 在 Task 2.6 切换前可见
- *     新激活的公式（Task 2.6 时仅去掉 study_states 写入即可）
+ * 结业时 [completeRitual] 在 IO 线程初始化 6 张 [SubCardStateEntity]
+ * （stability=1.0, nextReviewTime=次日刷新整点）。
+ * Task 2.6（2026-05-29）：母卡 study_states 已退役，结业不再双写，子卡为唯一真相源。
  */
 data class FormulaLearnRitualUiState(
     val formula: FormulaEntity? = null,
@@ -85,7 +82,6 @@ data class Step7State(
 
 class FormulaLearnRitualViewModel(
     private val repository: FormulaRepository,
-    private val studyStateDao: StudyStateDao,
     private val subCardStateDao: SubCardStateDao,
     private val appPreference: AppPreference
 ) : ViewModel() {
@@ -201,22 +197,7 @@ class FormulaLearnRitualViewModel(
                 )
             })
 
-            // 2. Plan I 双写：母卡 Task 2.6 切换前继续保持
-            if (studyStateDao.getByFormulaId(formula.formulaId) == null) {
-                studyStateDao.insert(
-                    StudyStateEntity(
-                        formulaId = formula.formulaId,
-                        learningState = 1,
-                        difficulty = initialDifficulty,
-                        stability = 1.0,
-                        lastReviewTime = nowMs,
-                        nextReviewTime = nextTime,
-                        lapses = 0,
-                        totalReviews = 0,
-                        consecutiveGoodReviews = 0
-                    )
-                )
-            }
+            // Task 2.6（2026-05-29）：母卡 study_states 已退役，结业仅初始化 6 子卡，不再双写。
 
             _uiState.update { it.copy(isCompleted = true) }
         }
@@ -232,7 +213,6 @@ class FormulaLearnRitualViewModel(
                 val db = AppContainer.appDatabase(app)
                 return FormulaLearnRitualViewModel(
                     repository = FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
-                    studyStateDao = db.studyStateDao(),
                     subCardStateDao = db.subCardStateDao(),
                     appPreference = AppContainer.appPreference(app)
                 ) as T

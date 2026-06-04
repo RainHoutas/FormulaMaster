@@ -270,7 +270,11 @@ related:
 - 🔧 **真机验收附带修复（2026-05-29）**：评分按钮「4 一眼出」在等宽布局下文字换行（实测高度 88px vs 其余 46px），用户拍板缩短为「**4 秒出**」；C2 结果横幅「系统评定 4（一眼出）」同步改「（秒出）」；改后实测四按钮等高 46px 单行。
   - 踩坑沉淀：`adb screencap` 抓含交互 chip 的 WebView 画面时顶部会出现底栏文字淡重影，经用户肉眼确认**屏幕实际无此重影**——纯截屏硬件层合成 artifact，勿当真实 bug 追。
 
-- [ ] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）
+- [x] **Task 2.5 FormulaDetail 重构：七步学习仪式**（2026-05-19 由六步扩为七步）— ✅ 代码完成 + 已接入导航（2026-06-04 核实）
+  
+  - 落地件：`ui/screen/FormulaLearnRitualScreen.kt` + `ui/viewmodel/FormulaLearnRitualViewModel.kt`；`MainScreen` `AppRoute.FormulaLearnRitual("formula_learn_ritual/{formulaId}")` 已挂导航（公式详情/列表两处入口）
+  - 结业逻辑（Task 2.6 后）：只写 6 张 `SubCardStateEntity`（`stability=1.0, nextReviewTime=次日刷新整点`），不再双写 `study_states`
+  - ⏳ **真机闭环验收并入 [Task 2.8]**（七步走通 → 全 3 张 mini-card 通过 → 结业落库 6 子卡）
   
   1. 条件 + 用途先行卡（2s 强制展示）
   2. 拆块讲解（可滑动）
@@ -280,11 +284,22 @@ related:
   6. 最小填空预热（**挖公式本体**一处）
   7. **巩固迷你卡序列**：3 张 C1+C2+C3 混合 mini-card；错答记下，每轮做完后回头重做错的，**全 3 张通过才结业**；结业后 6 张 SubCardStateEntity 初始化 `stability=1.0, nextReviewTime=次日刷新整点`
 
-- [ ] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3
+- [x] **Task 2.6 子卡 FSRS 切换：母卡 deprecated** — RFC §9.3 D-S2-3 ✅ 接线完成（2026-05-29）
+  
+  - ✅ **接线完成（2026-05-29）**：
+    - `FormulaWithState` 重构持 `DerivedProgress?`（不再 StudyStateEntity）；`MemoryViewModel` 读子卡 + `SubCardAggregator.deriveAll`
+    - `FormulaLearnRitualViewModel` 结业去掉 study_states 双写（只留 6 子卡）
+    - `MainActivity` 冲刺改 `applyIfNeededSubCards`；`DailyReminderWorker` 改 `countDueFormulas`
+    - `TestViewModel` 队列取子卡聚合 mastered，判分写 c1 子卡，postpone 改推全部子卡
+    - `SettingsViewModel` 整点切换批量重写改作用于子卡
+    - **删除死代码** `ReviewViewModel` + `ReviewScreen`（回退备份、未接导航）
+    - `StudyStateDao` 标 `@Deprecated`（保留 entity/表兼容老库；彻底删表需另开 Room 迁移 Task）
+    - 单测 291 全绿无回归；真机回归：记忆 Tab 状态/leech 红条正确 ✅、Test Tab mastered 空状态无崩溃 ✅
+    - ⏳ 冲刺/通知为纯后台逻辑，单测覆盖 + 启动无崩溃；更彻底的真机触发（临时改考试日期 / 触发 Worker）待需要时做
   
   - ✅ **预备件 1（2026-05-28，commit a23071a）**：`domain/SubCardAggregator.kt` 纯函数 + 14 单测
     —— 把子卡列表派生成整体进度（learningState / stability均值 / nextReviewTime最早 / lapses和）；
-    零真机可验；接线留待真机阶段。⚠ 待拍板：结业初始 stability=1.0 按字面 `<1.0` 判「复习中」而非「学习中」
+    零真机可验；接线留待真机阶段。✅ 边界已拍板（2026-05-29）：结业初始 stability=1.0 按字面 `<1.0` 判「复习中」——有意为之（结业=离开学习阶段进复习轮转；「学习中」专指未结业），保持 `<` 不改 `<=`
   - ✅ **预备件 2（2026-05-28，commit 406015a）**：子卡 DAO 聚合方法 + SprintMode 子卡版 + 8 单测
     —— `SubCardStateDao` 加 `halveStabilityAbove` / `resetReviewTimeForFormulas` /
     `getEarliestNextReviewTime` / `countDueFormulas`；`SprintModeManager.applyIfNeededSubCards`
@@ -306,11 +321,13 @@ related:
 
 - [ ] ~~Task 2.7 巩固阶段触发~~ **拒绝（2026-05-19）**：违反 RFC §3.5.1「APP 不做同日二次推送」恒久立场；同会话内的巩固由 Task 2.5 第 7 步承担，跨日走标准 FSRS
 
-- [ ] **Task 2.8 单测 + 真机验收**
+- [x] **Task 2.8 单测 + 真机验收** — ✅ 全部通过（2026-06-04）
   
-  - Memory Tab / Sprint Mode 真机三轮回归
-  - 路由器单测 ≥ 15 case 覆盖核心状态机
-  - 七步学习仪式真机闭环验收
+  - [x] 路由器单测 ≥ 15 case 覆盖核心状态机 — `ReviewRouterTest` **24 case**；全套单测 **320 个 @Test 全绿**
+  - [x] 七步学习仪式真机闭环验收 —— Bayes 公式：未激活 → 走完七步 → 3 张 mini-card（识别/填空/条件先行）全过 → 结业。**DB 铁证**：6 张子卡 c1-c6 全部 `S=1.000`、`nextReviewTime=2026-06-05 08:00`（次日刷新整点）、`reviews=0/lapses=0`；Memory 同步显示「复习中」
+  - [x] Memory Tab 真机三轮回归 —— ① 状态着色：学习中（期望与方差 MIN<1.0）/ 复习中（Bayes 刚结业）/ 已掌握（DB 注入全概率 AVG=35>30）三态 chip 正确；② leech 红条：期望与方差(lapses=4)、分部积分(lapses=8) 整卡 `errorContainer` 红底；③ mastered 拾取：Test Tab 正确显示已掌握的全概率公式（Task 2.6 子卡聚合查询生效）
+  - [x] Sprint Mode 真机回归 —— 设考试日期 2026-06-20（距 15 天，冲刺激活）→ 重启触发 `applyIfNeededSubCards`：全概率(S=35>15,mastered) 砍半→**17.5** 且 `nextReviewTime` 重置≈now；Bayes(S=1<15,非mastered) 不变。验毕已还原考试日期默认值
+  - 🐛 **真机使用发现并当场修复（P0）**：七步仪式 Step 6 + Step 7 两张填空卡只显示孤问号 `\fbox{?}`，缺公式骨架（Step 7 选项还是裸 LaTeX）。两卡改为复用 `ClozeSkeletonBuilder`（公式带洞骨架+实时填入）+ `LatexChipsView`（KaTeX 选项），与路由器正式 C2 卡对齐；真机验过（正态分布密度函数）。详见 [改进点池](../改进点池.md)「已完成」
 
 ---
 

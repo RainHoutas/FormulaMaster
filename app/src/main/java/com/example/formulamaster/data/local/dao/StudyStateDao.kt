@@ -8,6 +8,14 @@ import androidx.room.Update
 import com.example.formulamaster.data.local.entity.StudyStateEntity
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * 母卡（公式整体）FSRS 状态 DAO。
+ *
+ * ⚠ **Task 2.6（2026-05-29）已退役**：子卡 sub_card_states 成为唯一真相源，
+ * 全部读写已迁出（见 [SubCardStateDao] + [com.example.formulamaster.domain.SubCardAggregator]）。
+ * 保留 entity 与表仅为兼容老数据库（彻底删表需 Room 迁移）；**禁止再新增对本 DAO 的调用**。
+ */
+@Deprecated("母卡已退役，改用 SubCardStateDao（Task 2.6）。保留仅为兼容老库，勿新增调用。")
 @Dao
 interface StudyStateDao {
 

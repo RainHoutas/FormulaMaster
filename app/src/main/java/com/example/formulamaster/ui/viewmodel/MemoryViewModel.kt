@@ -6,12 +6,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
-import com.example.formulamaster.data.local.dao.StudyStateDao
-import com.example.formulamaster.data.local.entity.StudyStateEntity
+import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.repository.FormulaRepository
-import com.example.formulamaster.domain.ReviewScheduler
+import com.example.formulamaster.domain.SubCardAggregator
 import com.example.formulamaster.domain.model.FormulaWithState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,9 +30,15 @@ data class MemoryUiState(
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
+/**
+ * Sprint 2 Task 2.6（2026-05-29）：状态来源由母卡 study_states 切到**子卡聚合**。
+ * 整体进度（learningState / lapses 等）由 [SubCardAggregator] 从 sub_card_states 派生，
+ * 未激活的公式（无子卡）→ [FormulaWithState.derived] 为 null。
+ * 激活（创建 6 子卡）由七步学习仪式结业负责，本 VM 不再写库。
+ */
 class MemoryViewModel(
     private val repository: FormulaRepository,
-    private val studyStateDao: StudyStateDao,
+    private val subCardStateDao: SubCardStateDao,
     private val appPreference: AppPreference
 ) : ViewModel() {
 
@@ -52,11 +56,11 @@ class MemoryViewModel(
                 .flatMapLatest { subject ->
                     combine(
                         repository.observeFormulasFor(subject),
-                        studyStateDao.getAllStates()
-                    ) { formulas, states ->
-                        val stateMap = states.associateBy { it.formulaId }
+                        subCardStateDao.getAllStates()
+                    ) { formulas, subCards ->
+                        val derivedMap = SubCardAggregator.deriveAll(subCards)
                         formulas.map { formula ->
-                            FormulaWithState(formula, stateMap[formula.formulaId])
+                            FormulaWithState(formula, derivedMap[formula.formulaId])
                         }
                     }
                 }
@@ -66,41 +70,7 @@ class MemoryViewModel(
         }
     }
 
-    /**
-     * Task 3.4：首次激活公式。若已有 StudyStateEntity 则幂等跳过。
-     */
-    fun activateFormula(formulaId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (studyStateDao.getByFormulaId(formulaId) != null) return@launch
-            val formula = repository.getById(formulaId) ?: return@launch
-            val nowMs = System.currentTimeMillis()
-            // Sprint 2 Task 2.3：首次激活也截断到当日刷新整点（修复绕过 ReviewScheduler 的 bug）
-            val appSettings = appPreference.settings.value
-            val nextTime = ReviewScheduler.adjustToRefreshHour(
-                rawTimeMs = nowMs + DAY_MS,
-                currentTimeMs = nowMs,
-                hourOfDay = appSettings.dailyRefreshHourOfDay,
-                minute = appSettings.dailyRefreshMinuteOfHour
-            )
-            studyStateDao.insert(
-                StudyStateEntity(
-                    formulaId = formulaId,
-                    learningState = 1,
-                    difficulty = formula.difficultyLevel.toDouble().coerceIn(1.0, 5.0),
-                    stability = 1.0,
-                    lastReviewTime = nowMs,
-                    nextReviewTime = nextTime,
-                    lapses = 0,
-                    totalReviews = 0,
-                    consecutiveGoodReviews = 0
-                )
-            )
-        }
-    }
-
     companion object {
-        private const val DAY_MS = 24L * 60 * 60 * 1000
-
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -108,7 +78,7 @@ class MemoryViewModel(
                 val db = AppContainer.appDatabase(app)
                 return MemoryViewModel(
                     FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
-                    db.studyStateDao(),
+                    db.subCardStateDao(),
                     AppContainer.appPreference(app)
                 ) as T
             }

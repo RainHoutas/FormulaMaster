@@ -66,7 +66,8 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
                 com.example.formulamaster.data.AppSettings.defaultTargetExamDate()
             }
-            SprintModeManager.applyIfNeeded(db.studyStateDao(), target)
+            // Task 2.6（2026-05-29）：冲刺模式改读子卡（母卡退役）
+            SprintModeManager.applyIfNeededSubCards(db.subCardStateDao(), target)
         }
 
         // Sprint 2 Task 2.1 后台冷启动预热：把"首次进 Tab 才付钱"的开销前置到 App 启动时

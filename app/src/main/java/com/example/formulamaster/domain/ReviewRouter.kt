@@ -8,7 +8,7 @@ package com.example.formulamaster.domain
  *
  * **不负责的事**：
  * - FSRS S/D 更新 → 由 [ReviewScheduler.calculate] 处理
- * - SubCardStateEntity 落库 → 由 ReviewViewModel 在每次 [rate] 后写
+ * - SubCardStateEntity 落库 → 由 RouterReviewViewModel 在每次 [rate] 后写
  * - 强标记 (`isReinforced`) 写回 → 由 ViewModel 监听 [RouterEvent.ReinforcementUpgraded] 触发
  * - 跨会话恢复 → 由 ReviewSessionProgressEntity + ViewModel 在 [start] 前 hydrate state
  *

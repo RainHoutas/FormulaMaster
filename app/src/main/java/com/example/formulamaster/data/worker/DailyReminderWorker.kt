@@ -41,13 +41,13 @@ class DailyReminderWorker(
         val db = AppDatabase.getInstance(appContext)
         val nowMs = System.currentTimeMillis()
 
-        // 取今日待复习队列第一次值（Flow → 一次性读取）
-        val queue = db.studyStateDao().getTodayReviewQueue(nowMs).first()
-        if (queue.isEmpty()) return Result.success()
+        // Task 2.6（2026-05-29）：改读子卡——到期的去重公式数（母卡退役）
+        val dueCount = db.subCardStateDao().countDueFormulas(nowMs)
+        if (dueCount == 0) return Result.success()
 
         // 创建通知频道 + 发送通知
         ensureNotificationChannel()
-        sendNotification(count = queue.size)
+        sendNotification(count = dueCount)
         return Result.success()
     }
 

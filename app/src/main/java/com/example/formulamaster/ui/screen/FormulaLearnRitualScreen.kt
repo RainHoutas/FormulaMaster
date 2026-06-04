@@ -60,6 +60,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.ClozeSkeletonBuilder
+import com.example.formulamaster.ui.component.LatexChipsView
 import com.example.formulamaster.ui.component.MathFormulaView
 import com.example.formulamaster.ui.component.TracingCanvas
 import com.example.formulamaster.ui.viewmodel.FormulaLearnRitualViewModel
@@ -531,13 +533,20 @@ private fun Step6MinimalCloze(
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("挖空位置（占位符）", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text("在公式的方框处回忆该填什么", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(8.dp))
+                // 渲染「公式带洞骨架」：未揭晓时挖空处显示编号方框，
+                // 揭晓后把方框实时填成正确部件（复用 ClozeSkeletonBuilder，与路由器 C2 卡一致）。
+                val skeleton = ClozeSkeletonBuilder.build(
+                    latexCode = fullLatex,
+                    blanks = listOf(minimalItem),
+                    selections = if (revealed) mapOf(minimalItem.index to minimalItem.placeholder) else emptyMap()
+                )
                 MathFormulaView(
-                    latex = if (revealed) minimalItem.placeholder else "\\;\\fbox{\\;?\\;}\\;",
+                    latex = skeleton,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp)
+                        .height(120.dp)
                 )
                 Spacer(Modifier.height(12.dp))
                 TextButton(
@@ -548,15 +557,6 @@ private fun Step6MinimalCloze(
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Text("完整公式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
-        MathFormulaView(
-            latex = fullLatex,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-        )
     }
 }
 
@@ -686,29 +686,38 @@ private fun MiniC2Card(
         return
     }
 
+    val options = remember(item) {
+        if (item.options.isEmpty()) listOf(item.placeholder) else item.options.shuffled()
+    }
     ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Mini · 填空", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
+            // 公式带洞骨架：未提交时挖空处编号方框 + 选中 chip 实时填入；提交后还原完整公式。
+            // 复用 ClozeSkeletonBuilder + LatexChipsView，与路由器正式 C2 卡保持一致渲染。
+            val skeleton = if (submitted) fullLatex else ClozeSkeletonBuilder.build(
+                latexCode = fullLatex,
+                blanks = listOf(item),
+                selections = selected?.let { mapOf(item.index to it) } ?: emptyMap()
+            )
             MathFormulaView(
-                latex = if (submitted) fullLatex else "\\;\\fbox{\\;?\\;}\\;",
-                modifier = Modifier.fillMaxWidth().height(100.dp)
+                latex = skeleton,
+                modifier = Modifier.fillMaxWidth().height(120.dp)
             )
             Spacer(Modifier.height(12.dp))
-            val options = if (item.options.isEmpty()) listOf(item.placeholder) else item.options
-            options.forEach { opt ->
-                val isSel = selected == opt
-                OutlinedButton(
-                    onClick = { if (!submitted) selected = opt },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                ) {
-                    Text(opt, modifier = Modifier.padding(vertical = 2.dp))
-                    if (isSel) Text(" ✓")
-                }
+            if (!submitted) {
+                LatexChipsView(
+                    items = options,
+                    selectable = true,
+                    singleSelect = true,
+                    onSelectionChanged = { set ->
+                        val idx = set.firstOrNull()
+                        selected = if (idx != null && idx in options.indices) options[idx] else null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     submitted = true
