@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,13 +42,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.formulamaster.domain.C6Grading
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeGrading
 import com.example.formulamaster.domain.ClozeSkeletonBuilder
+import com.example.formulamaster.domain.DerivationSelfAssessment
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
+import com.example.formulamaster.domain.model.DerivationStep
 import com.example.formulamaster.ui.component.LatexChipsView
 import com.example.formulamaster.ui.component.MathFormulaView
+import com.example.formulamaster.ui.viewmodel.C6Option
 import com.example.formulamaster.ui.viewmodel.RouterReviewViewModel
 import kotlinx.coroutines.delay
 
@@ -140,6 +145,39 @@ fun RouterReviewScreen(
                             onRate = viewModel::rate,
                             modifier = Modifier.fillMaxSize()
                         )
+
+                        // C4 无推导链（数据缺失）时回落通用骨架，避免空卡卡住
+                        CardType.C4_Derivation -> if (uiState.currentDerivationSteps.isNotEmpty()) {
+                            C4DerivationPane(
+                                action = action,
+                                formulaTitle = title,
+                                formulaLatex = latex,
+                                steps = uiState.currentDerivationSteps,
+                                isReinforced = isReinforced,
+                                onRate = viewModel::rate,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
+                        }
+
+                        // C6 题面 / 候选池数据不足时回落通用骨架
+                        CardType.C6_TypicalProblem -> if (
+                            uiState.currentC6Problem.isNotBlank() && uiState.currentC6Options.size >= 2
+                        ) {
+                            C6TypicalProblemPane(
+                                action = action,
+                                formulaTitle = title,
+                                problem = uiState.currentC6Problem,
+                                options = uiState.currentC6Options,
+                                correctIds = uiState.currentC6CorrectIds,
+                                isReinforced = isReinforced,
+                                onRate = viewModel::rate,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
+                        }
 
                         else -> ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
                     }
@@ -554,6 +592,255 @@ private fun C3PreconditionPane(
 }
 
 private const val C3_COUNTDOWN_SECONDS = 3
+
+// ── C4 推导卡专属面板（Task 3.1） ──────────────────────────────────────────────
+
+/**
+ * C4 推导卡：题面给「公式结论」→ 用户心里推一遍 → [C4_COUNTDOWN_SECONDS] 秒倒计时门 →
+ * 解锁后「看推导」一次性露出完整推导链（每步 latex + note）→ 三档自评。
+ *
+ * 三档自评（[DerivationSelfAssessment]）映射 FSRS 评分 1/2/4（用户 2026-06-05 拍板）：
+ * 不会→1 / 查看了→2 / 推出来了→4。映射逻辑在纯枚举中，便于单测。
+ *
+ * 与 C3 对称（倒计时门 + 解锁后展开），区别在于：C3 先看条件回想公式，C4 先看结论回想推导过程。
+ */
+@Composable
+private fun C4DerivationPane(
+    action: ReviewRouter.NextAction.ShowCard,
+    formulaTitle: String,
+    formulaLatex: String,
+    steps: List<DerivationStep>,
+    isReinforced: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var remaining by remember(action.formulaId, action.cardType) { mutableIntStateOf(C4_COUNTDOWN_SECONDS) }
+    var revealed by rememberSaveable(action.formulaId, action.cardType) { mutableStateOf(false) }
+
+    LaunchedEffect(action.formulaId, action.cardType) {
+        remaining = C4_COUNTDOWN_SECONDS
+        while (remaining > 0) {
+            delay(1000)
+            remaining -= 1
+        }
+    }
+    val unlocked = remaining <= 0
+
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        CardHeaderChips(action.cardType, isReinforced, action.isReinforcementRetest)
+        Spacer(Modifier.height(12.dp))
+        Text(formulaTitle.ifEmpty { "（公式标题缺失）" }, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(20.dp))
+
+        // ── 题面：目标结论（始终可见，让用户知道往哪推）────────────────────────
+        ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                SectionLabel("目标结论")
+                MathFormulaView(
+                    latex = formulaLatex,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                )
+                Text(
+                    text = "在心里把这条公式推一遍",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+
+        // ── 推导链（解锁并点开后一次全露）────────────────────────────────────
+        if (revealed) {
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    SectionLabel("推导过程")
+                    steps.forEachIndexed { i, step ->
+                        if (i > 0) RevealSectionDivider()
+                        Text(
+                            text = "${i + 1}. ${step.note}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                        if (step.latex.isNotBlank()) {
+                            MathFormulaView(
+                                latex = step.latex,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(80.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        when {
+            !unlocked -> Text(
+                text = "先自己推 · $remaining 秒后看推导",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+
+            !revealed -> Button(onClick = { revealed = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("看推导")
+            }
+
+            else -> DerivationRatingRow(onRate = onRate)
+        }
+    }
+}
+
+/**
+ * C4 三档自评行：不会 / 查看了 / 推出来了 → 取 [DerivationSelfAssessment.rating] 交路由器。
+ */
+@Composable
+private fun DerivationRatingRow(onRate: (Int) -> Unit) {
+    Column {
+        Text(
+            text = "自评",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DerivationSelfAssessment.entries.forEach { choice ->
+                RatingButton(
+                    label = choice.label,
+                    onClick = { onRate(choice.rating) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+private const val C4_COUNTDOWN_SECONDS = 5
+
+// ── C6 题型反查卡专属面板（Task 3.2） ──────────────────────────────────────────
+
+/**
+ * C6 题型反查卡：展示一道题面 → 从**同章节公式池多选**该题该用哪条公式 → 系统判对错 → 映射评分。
+ *
+ * 评分由 [C6Grading] 决定（选中集恰好等于正确集→4 / 否则→1），用户不自评。提交后展示对错横幅，
+ * 选错时露出正确公式（标题 + KaTeX）。选项以公式 KaTeX 渲染（用户 2026-06-05 拍板）。
+ *
+ * 题面是教辅改编纯文本（部分含数值答案，不透露解法），用 [Text] 渲染；选项才走 [LatexChipsView]。
+ */
+@Composable
+private fun C6TypicalProblemPane(
+    action: ReviewRouter.NextAction.ShowCard,
+    formulaTitle: String,
+    problem: String,
+    options: List<C6Option>,
+    correctIds: Set<String>,
+    isReinforced: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectedIndices = remember(action.formulaId, action.cardType) { mutableStateListOf<Int>() }
+    var result by remember(action.formulaId, action.cardType) { mutableStateOf<C6Grading.Result?>(null) }
+    val submitted = result != null
+
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        CardHeaderChips(action.cardType, isReinforced, action.isReinforcementRetest)
+        Spacer(Modifier.height(12.dp))
+        Text(formulaTitle.ifEmpty { "（公式标题缺失）" }, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(16.dp))
+
+        // ── 题面 ────────────────────────────────────────────────────────────
+        ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                SectionLabel("题面")
+                Text(problem, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            text = "这道题该用哪条公式？（可多选）",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        if (!submitted) {
+            LatexChipsView(
+                items = options.map { it.latex },
+                selectable = true,
+                onSelectionChanged = { set ->
+                    selectedIndices.clear()
+                    selectedIndices.addAll(set)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(16.dp))
+            val anySelected = selectedIndices.isNotEmpty()
+            Button(
+                onClick = {
+                    val selectedIds = selectedIndices.mapNotNull { options.getOrNull(it)?.formulaId }.toSet()
+                    result = C6Grading.grade(selectedIds, correctIds)
+                },
+                enabled = anySelected,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (anySelected) "提交" else "请至少选一条")
+            }
+        } else {
+            val r = result!!
+            Surface(
+                color = if (r.allCorrect) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (r.allCorrect) "正确 · 系统评定 4" else "不对 · 系统评定 1",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // 选错时露出正确公式
+            if (!r.allCorrect) {
+                Spacer(Modifier.height(12.dp))
+                Text("正确公式：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(4.dp))
+                options.filter { it.formulaId in correctIds }.forEach { opt ->
+                    Text(opt.title, style = MaterialTheme.typography.bodyMedium)
+                    MathFormulaView(
+                        latex = opt.latex,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { onRate(r.rating) }, modifier = Modifier.fillMaxWidth()) {
+                Text("继续")
+            }
+        }
+    }
+}
 
 // ── ShowCard 通用骨架（C2-C6 暂用） ─────────────────────────────────────────────
 

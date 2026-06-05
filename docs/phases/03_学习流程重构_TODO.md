@@ -340,17 +340,31 @@ related:
 
 ### Task 列表（6 个）
 
-- [ ] **Task 3.1 C4 推导卡**（5s 推导挑战 + 三档自评）— RFC §3.3 / §3.5 第 3 步复用 `derivationSteps`
+- [x] **Task 3.1 C4 推导卡**（5s 推导挑战 + 三档自评）— RFC §3.3 / §3.5 第 3 步复用 `derivationSteps` — ✅ 代码完成待真机验收（2026-06-05）
   - 数据就绪：30/30 公式有 `derivationSteps`（`[{latex, note}]` 对象数组）
   - 交互蓝图：题面给「公式结论」→ 用户心里推一遍 → 倒计时门后「看推导」逐步露 DerivationStep → 三档自评
-  - ⚠ **二级决策（开工前问）**：① 三档自评（不会/查看了/推出来了）→ FSRS 评分映射（建议 1/2/4，待拍板）② 倒计时秒数（RFC 写 5s）③ 推导链一次全露还是逐步点露
-  - Done：`C4DerivationPane`（专属面板）+ VM 解析 derivationSteps；路由器把 C4 纳入 due（已有 fallback 剔除逻辑，本 Task 接入渲染）；单测覆盖评分映射
+  - ✅ **二级决策（2026-06-05 用户拍板，全取推荐项）**：① 三档自评 不会→1 / 查看了→2 / 推出来了→4（跳过 Good，RFC 建议）② 倒计时 **5 秒** ③ 推导链**一次全露**
+  - ✅ 落地件：
+    - `domain/DerivationSelfAssessment.kt`：三档自评→评分纯枚举（CANNOT_RECALL=1 / VIEWED=2 / DERIVED=4），映射逻辑可单测
+    - `RouterReviewViewModel`：UiState 加 `currentDerivationSteps`；VM 内 `DerivationStepParser.parse`（不在 Composable 碰 JSON）；C4 ShowCard 时解析
+    - `RouterReviewScreen.C4DerivationPane`（专属面板）：目标结论常驻（让用户知道往哪推）+ 5s 倒计时门（复用 C3 模式）+「看推导」一次全露推导链（每步 `note` + `latex`，步间分隔线）+ 三档自评行；推导链缺失回落 `ShowCardPane`
+    - `DerivationSelfAssessmentTest` 6 单测（映射 1/2/4 + 严格递增 + 跳过 3 + label 对应）
+  - ✅ compileDebugKotlin + 全套单测 **326 个全绿**（320→326）
+  - ⏳ **真机验收并入 Task 3.6**：C4 卡随路由器轮转出现 → 5s 倒计时 → 看推导链 → 三档自评落库
+  - Done：`C4DerivationPane`（专属面板）+ VM 解析 derivationSteps；C4 已随七步结业写子卡并随轮转纳入 due（通用骨架已被专属面板取代）；单测覆盖评分映射 ✓
 
-- [ ] **Task 3.2 C6 题型反查卡**（看题面 → 公式池点选）— RFC D1 二阶 / D13=C
-  - 数据就绪：30/30 公式有 `typicalProblems`（教辅改编题面 JSON）
+- [x] **Task 3.2 C6 题型反查卡**（看题面 → 公式池点选）— RFC D1 二阶 / D13=C — ✅ 代码完成待真机验收（2026-06-05）
+  - 数据就绪：30/30 公式有 `typicalProblems`（教辅改编题面 JSON，**字符串数组**纯文本，部分含数值答案不透露解法）
   - 交互蓝图：展示一道 typicalProblem 题面 → 用户从**公式池点选**该题该用哪条公式（切断文字输入，RFC §3.6）→ 判对错 + 反馈
-  - ⚠ **二级决策（开工前问）**：① 候选池范围（全 30 / 同章节 / 含易混干扰项）② 单选还是多选 ③ 判对/判错后 FSRS 评分映射 ④ 选项以公式名还是公式 KaTeX 呈现
-  - Done：`C6TypicalProblemPane` + 公式池点选组件；单测覆盖判分
+  - ✅ **二级决策（2026-06-05 用户拍板）**：① 候选池 = **同章节**（按用户 subject 过滤）② **多选**（正确集恒为单条 = 题面所属公式，多选 UI 为未来「一题多公式」留口子，判分=选中集恰好等于正确集）③ 选对→4 / 选错→1 ④ 选项用**公式 KaTeX**
+  - ✅ 落地件：
+    - `domain/C6Grading.kt`：集合判等判分（`selected == correct && correct 非空` → 4 / 否则 1），与 ClozeGrading 同构
+    - `RouterReviewViewModel`：UiState 加 `currentC6Problem/Options/CorrectIds` + `C6Option(formulaId,title,latex)`；`buildC6Card` 抽题面 + 同章节候选池（`observeFormulasFor(subject).first()` 过滤 chapter + 稳定 shuffle）；题面缺失 / 候选 <2 条回落 `ShowCardPane`
+    - `RouterReviewScreen.C6TypicalProblemPane`：题面 Text（纯文本）+ 多选 `LatexChipsView`（公式 KaTeX）+ 提交自动判分横幅 + 选错露正确公式（标题+KaTeX）
+    - `C6GradingTest` 7 单测（单条对/错、多选超额、空选、正确集空兜底、未来多公式全对/漏选）
+  - ✅ compileDebugKotlin + 全套单测 **333 个全绿**（326→333）
+  - ⏳ **真机验收并入 Task 3.6**：C6 卡随轮转出现 → 题面 + 同章节 KaTeX 候选多选 → 判分落库 → 选错露正确公式
+  - Done：`C6TypicalProblemPane` + 公式池点选组件；单测覆盖判分 ✓
 
 - [ ] **Task 3.3 错题本入口 UI**（Memory Tab 二级页）— RFC §4.4=B（后端已就绪，设计 2026-06-04 用户拍板）
   - **后端就绪**：`ErrorReportEntity` + `ErrorReportDao`(observeAll 倒序 / delete) + `ErrorReportProcessor`（Sprint 1 Task 1.6，插入即把所选公式 6 子卡 `S←MAX(S×0.5,0.5)` + 推次日刷新整点 + lapses+1）

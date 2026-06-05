@@ -16,8 +16,10 @@ import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeParser
+import com.example.formulamaster.domain.DerivationStepParser
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
+import com.example.formulamaster.domain.model.DerivationStep
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,9 +55,30 @@ data class RouterReviewUiState(
      * 在 VM 内用 [ClozeParser.weightedSample] 抽样（不在 Composable 解析/采样）；每张卡稳定一次。
      */
     val currentClozeBlanks: List<ClozeItem> = emptyList(),
+    /**
+     * C4 推导卡的推导链（按 derivationSteps 顺序）。仅当 [pendingAction] 是 C4 ShowCard 时非空。
+     * 在 VM 内用 [DerivationStepParser] 解析（不在 Composable 解析 JSON）；空时面板回落通用骨架。
+     */
+    val currentDerivationSteps: List<DerivationStep> = emptyList(),
+    /** C6 题型反查卡本轮抽中的题面（纯文本）。仅当 [pendingAction] 是 C6 ShowCard 且数据齐时非空。 */
+    val currentC6Problem: String = "",
+    /** C6 候选公式池（同章节，已按用户 subject 过滤 + 稳定乱序）；KaTeX 渲染。 */
+    val currentC6Options: List<C6Option> = emptyList(),
+    /** C6 当前题面的正确公式 id 集合（当前恒为单条 = 题面所属公式）。 */
+    val currentC6CorrectIds: Set<String> = emptySet(),
     val isSessionEnd: Boolean = false,
     /** "Fresh" / "Resumed" / "FallbackToFresh"；UI 可在调试模式 toast 提示，生产可忽略 */
     val initType: String? = null
+)
+
+/**
+ * C6 题型反查卡的一个候选选项（Sprint 3 Task 3.2）。
+ * [latex] 供 KaTeX 渲染选项；[formulaId] 用于判分（选中集 vs 正确集）。
+ */
+data class C6Option(
+    val formulaId: String,
+    val title: String,
+    val latex: String
 )
 
 /**
@@ -233,6 +256,28 @@ class RouterReviewViewModel(
             emptyList()
         }
 
+        // C4 推导卡：解析 derivationSteps 链（一次全露，UI 在倒计时门后展示）
+        val derivationSteps: List<DerivationStep> = if (
+            action is ReviewRouter.NextAction.ShowCard &&
+            action.cardType == CardType.C4_Derivation &&
+            formula != null
+        ) {
+            DerivationStepParser.parse(formula.derivationSteps)
+        } else {
+            emptyList()
+        }
+
+        // C6 题型反查卡：抽一道题面 + 同章节候选池（按用户 subject 过滤，稳定乱序）
+        val c6 = if (
+            action is ReviewRouter.NextAction.ShowCard &&
+            action.cardType == CardType.C6_TypicalProblem &&
+            formula != null
+        ) {
+            buildC6Card(formula)
+        } else {
+            null
+        }
+
         _uiState.update {
             it.copy(
                 isLoading           = false,
@@ -241,11 +286,50 @@ class RouterReviewViewModel(
                 currentSubCard      = subCard,
                 currentPreconditions = preconditions,
                 currentClozeBlanks  = clozeBlanks,
+                currentDerivationSteps = derivationSteps,
+                currentC6Problem    = c6?.problem.orEmpty(),
+                currentC6Options    = c6?.options.orEmpty(),
+                currentC6CorrectIds = c6?.correctIds.orEmpty(),
                 isSessionEnd        = action is ReviewRouter.NextAction.SessionEnd,
                 initType            = initType ?: it.initType
             )
         }
     }
+
+    /**
+     * 组装一张 C6 题型反查卡：随机抽一道 [FormulaEntity.typicalProblems] 题面，
+     * 候选池 = 用户 subject 下与该公式**同章节**的全部公式（含本身），稳定乱序后 KaTeX 渲染。
+     *
+     * 数据不足（无题面 / 同章节候选 < 2 条 = 没有干扰项）时返回 null，由调用方回落通用骨架。
+     * 题面纯文本（教辅改编），用 Text 渲染；选项才是公式 KaTeX。
+     */
+    private suspend fun buildC6Card(formula: FormulaEntity): C6CardData? {
+        val problems = runCatching {
+            Gson().fromJson<List<String>>(formula.typicalProblems, stringListType) ?: emptyList()
+        }.getOrDefault(emptyList()).filter { it.isNotBlank() }
+        if (problems.isEmpty()) return null
+
+        val subject = appPreference.settings.value.kaoyanSubject
+        val sameChapter = formulaRepository.observeFormulasFor(subject).first()
+            .filter { it.chapter == formula.chapter }
+        if (sameChapter.size < 2) return null
+
+        val options = sameChapter
+            .map { C6Option(formulaId = it.formulaId, title = it.title, latex = it.latexCode) }
+            .shuffled()
+
+        return C6CardData(
+            problem = problems.random(),
+            options = options,
+            correctIds = setOf(formula.formulaId)
+        )
+    }
+
+    private data class C6CardData(
+        val problem: String,
+        val options: List<C6Option>,
+        val correctIds: Set<String>
+    )
 
     companion object {
         /** C2 每张卡目标挖空数（自适应 min(此值, 公式总挖空数)，用户拍板 2026-05-28）。 */
