@@ -40,4 +40,36 @@ object ClozeSkeletonBuilder {
         }
         return result
     }
+
+    /**
+     * 判分态骨架（Sprint 3 Task 3.5，用户拍板 2026-06-05）：提交后顶部骨架每个方框**填正确答案**，
+     * 并用 `\colorbox` 整框上色——答对绿底 / 答错红底，一眼看出哪个位置错了。
+     *
+     * 前景色用 `\textcolor` 锁死（深绿 / 深红），不依赖 KaTeX 模板注入的主题色，
+     * 避免暗色模式下浅底配浅字看不清（真机验收重点核对对比度）。
+     *
+     * @param perBlankCorrect index（[ClozeItem.index]）→ 该空是否答对；缺失视为答错（保守）
+     */
+    fun buildGraded(
+        latexCode: String,
+        blanks: List<ClozeItem>,
+        perBlankCorrect: Map<Int, Boolean>,
+    ): String {
+        var result = latexCode
+        blanks.forEach { blank ->
+            val correct = perBlankCorrect[blank.index] == true
+            val bg = if (correct) COLOR_CORRECT_BG else COLOR_WRONG_BG
+            val fg = if (correct) COLOR_CORRECT_FG else COLOR_WRONG_FG
+            // \colorbox 给整框底色；内部 \textcolor 锁前景，\boxed 保留方框边框视觉
+            val inner = "\\colorbox{$bg}{\$\\textcolor{$fg}{\\boxed{${blank.placeholder}}}\$}"
+            result = result.replaceFirst(blank.placeholder, inner)
+        }
+        return result
+    }
+
+    // 判分态配色（浅底 + 深字，自洽不依赖主题色）
+    private const val COLOR_CORRECT_BG = "#C8E6C9"  // 浅绿
+    private const val COLOR_CORRECT_FG = "#1B5E20"  // 深绿
+    private const val COLOR_WRONG_BG = "#FFCDD2"     // 浅红
+    private const val COLOR_WRONG_FG = "#B71C1C"     // 深红
 }

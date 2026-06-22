@@ -693,13 +693,21 @@ private fun MiniC2Card(
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Mini · 填空", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
-            // 公式带洞骨架：未提交时挖空处编号方框 + 选中 chip 实时填入；提交后还原完整公式。
-            // 复用 ClozeSkeletonBuilder + LatexChipsView，与路由器正式 C2 卡保持一致渲染。
-            val skeleton = if (submitted) fullLatex else ClozeSkeletonBuilder.build(
-                latexCode = fullLatex,
-                blanks = listOf(item),
-                selections = selected?.let { mapOf(item.index to it) } ?: emptyMap()
-            )
+            // 公式带洞骨架：未提交时挖空处编号方框 + 选中 chip 实时填入；
+            // 提交后用 buildGraded 填正确答案 + 整框按对错着色（与路由器正式 C2 卡一致，Task 3.5）。
+            val skeleton = if (submitted) {
+                ClozeSkeletonBuilder.buildGraded(
+                    latexCode = fullLatex,
+                    blanks = listOf(item),
+                    perBlankCorrect = mapOf(item.index to (selected == item.placeholder))
+                )
+            } else {
+                ClozeSkeletonBuilder.build(
+                    latexCode = fullLatex,
+                    blanks = listOf(item),
+                    selections = selected?.let { mapOf(item.index to it) } ?: emptyMap()
+                )
+            }
             MathFormulaView(
                 latex = skeleton,
                 modifier = Modifier.fillMaxWidth().height(120.dp)

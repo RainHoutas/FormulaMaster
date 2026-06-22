@@ -394,10 +394,15 @@ private fun C2ClozePane(
         )
         Spacer(Modifier.height(16.dp))
 
-        // ── 公式骨架（带编号方框的洞，选中 chip 实时填入）──────────────────────
-        // 读 selections 快照 → 选择变化即重算骨架 → MathFormulaView 重渲染（实时填入预览）
+        // ── 公式骨架（带编号方框的洞，选中 chip 实时填入；提交后整框按对错着色）────────
+        // 未提交：读 selections 快照实时填入预览；提交后：buildGraded 填正确答案 + colorbox 上色
         if (formulaLatex.isNotBlank()) {
-            val skeleton = ClozeSkeletonBuilder.build(formulaLatex, blanks, selections.toMap())
+            val gradedResult = result
+            val skeleton = if (gradedResult != null) {
+                ClozeSkeletonBuilder.buildGraded(formulaLatex, blanks, gradedResult.perBlankCorrect)
+            } else {
+                ClozeSkeletonBuilder.build(formulaLatex, blanks, selections.toMap())
+            }
             ElevatedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 MathFormulaView(
                     latex = skeleton,
@@ -441,13 +446,14 @@ private fun C2ClozePane(
                     modifier = Modifier.fillMaxWidth()
                 )
             } else if (correctThis == false) {
+                // 正确答案已在顶部骨架红框露出；这里显示用户选错的部件，方便上下对照
                 Text(
-                    text = "正确答案：",
+                    text = "你选的（错）：",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.error
                 )
                 LatexChipsView(
-                    items = listOf(blank.placeholder),
+                    items = listOf(selections[blank.index].orEmpty()),
                     selectable = false,
                     modifier = Modifier.fillMaxWidth()
                 )

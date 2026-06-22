@@ -391,11 +391,18 @@ related:
   - ⚠ 依赖 Task 3.3（错题本写入 ErrorReport 后才有「被标记」信号）；需查 `ErrorReportDao` 按 formulaId + 时间窗计数
   - Done：聚合逻辑加时间窗计数；单测覆盖两条 leech 触发路径
 
-- [ ] **Task 3.5 复习 C2 判错顶部公式骨架着色**（用户 P1，2026-06-04）— 见 [改进点池](../改进点池.md)「已纳入」
+- [x] **Task 3.5 复习 C2 判错顶部公式骨架着色**（用户 P1，2026-06-04）— ✅ 代码完成待真机验收（2026-06-22）
   - 现状：`C2ClozePane` 提交后只在下方逐空标 ✓/✗，顶部骨架只实时填入不标对错
   - 改造：`ClozeSkeletonBuilder` 加「判分态」重载（传 `perBlankCorrect`），顶部方框按对错着色（对=主色 / 错=错误色，错空可叠正确答案）；顺带覆盖七步仪式 `MiniC2Card` 结果态
-  - ⚠ **二级决策（开工前问）**：着色方案（`\colorbox` 整框 / `\textcolor` 文字 / 边框色）+ 错空是显示用户答案还是正确答案
-  - Done：KaTeX 着色渲染真机验过 + `ClozeSkeletonBuilderTest` 加判分态用例
+  - ✅ **二级决策（2026-06-22 用户拍板）**：① 着色方案 = **`\colorbox` 整框底色**（对绿底 #C8E6C9 / 错红底 #FFCDD2，`\textcolor` 锁深绿/深红前景防暗色模式低对比度）② 错空对照：**顶部骨架方框填正确答案**（红框）+ **下方选项区改为显示用户选错的部件**（「你选的（错）：」），上下对照学习
+  - ✅ 落地件：
+    - `ClozeSkeletonBuilder.buildGraded(latexCode, blanks, perBlankCorrect)`：判分态骨架，每框填 placeholder（正确答案）+ `\colorbox` 上色；缺失视为答错（保守红底）
+    - `RouterReviewScreen.C2ClozePane`：提交后顶部走 `buildGraded`；下方错空从「正确答案：placeholder」改为「你选的（错）：selections[index]」
+    - `FormulaLearnRitualScreen.MiniC2Card`：结果态由「还原 fullLatex」改为 `buildGraded` 单空着色
+    - `ClozeSkeletonBuilderTest` +5（答对绿底 / 答错红底 / 多空混合 / 缺失视错 / 空列表兜底）
+  - ✅ compileDebugKotlin + 全套单测 **338 个全绿**（333→338）
+  - ⏳ **真机验收并入 Task 3.6**：C2 判错顶部红框 + 下方「你选的（错）」对照；**暗色模式对比度重点核对**（colorbox 浅底配 textcolor 深字）
+  - Done：KaTeX 着色渲染真机验过 + `ClozeSkeletonBuilderTest` 加判分态用例 ✓
 
 - [ ] **Task 3.6 单测 + 真机验收**
   - C4/C6 卡型真机走通（含路由器轮转纳入新卡型）
