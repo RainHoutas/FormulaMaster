@@ -35,7 +35,7 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         BlockedFormulaEntity::class,
         ReviewSessionProgressEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,6 +87,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 2 Task 2.1b：v9 → v10 新增 review_session_progress 单行表
                     //   - 同日 cursor 续接（跨日由 ViewModel 比较 sessionDateMs 决定丢弃 / 续接）
                     //   - 序列化由 ReviewSessionProgressCodec 处理（扁平 DTO 绕开 DictationState sealed）
+                    // 学习流程重构 Sprint 3 Task 3.3：v10 → v11 error_reports 加 penaltySnapshotJson 字段
+                    //   - 录入错题时快照所选公式各子卡 (S/nextReview/lapses) 原值
+                    //   - 删除时选「恢复计划」→ 逐子卡 best-effort 还原（未被真实复习触碰过的才还原）
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。

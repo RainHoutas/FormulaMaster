@@ -366,7 +366,22 @@ related:
   - ⏳ **真机验收并入 Task 3.6**：C6 卡随轮转出现 → 题面 + 同章节 KaTeX 候选多选 → 判分落库 → 选错露正确公式
   - Done：`C6TypicalProblemPane` + 公式池点选组件；单测覆盖判分 ✓
 
-- [ ] **Task 3.3 错题本入口 UI**（Memory Tab 二级页）— RFC §4.4=B（后端已就绪，设计 2026-06-04 用户拍板）
+- [x] **Task 3.3 错题本入口 UI**（Memory Tab 二级页）— RFC §4.4=B — ✅ **真机验收通过（2026-07-01）**
+  - ✅ **真机全闭环（2026-07-01，DB 铁证）**：FAB→错题本→空态→表单（科目→章节联动 / 来源 chip / 编号数字键盘 / 公式池分组 / 未学灰显）→未学「去学」对话框→已学公式可选（DB 注入期望与方差+Bayes 验证「已学不灰显」）→提交（**期望与方差 6 子卡 S 10→5.0 + lapses 0→1 + nextReview→次日 09:00；penaltySnapshotJson 6 条存惩罚前原值 S=10；Bayes 未选保持 S=10 不受影响**）→删除对话框（仅删记录 / 恢复计划 / 以后都这样）→「恢复计划」（**6 子卡 S 5→10 + lapses→0 + nextReview 还原录入前**）→ error_reports 归零。设置项「删除错题时=每次询问」渲染正常。逐子卡 best-effort 保留已复习进度由 14 单测覆盖。
+  - ✅ **开工前二级决策（2026-07-01 用户拍板）**：① FormulaIndex **最小够用**（只做 subject→chapter→公式 分组 + 未学标记，图谱邻接/可视化留 Sprint 4）② 快照还原 = **逐子卡 best-effort**：删除选「恢复计划」时，仅还原「录入后未被真实复习触碰」的子卡（`lastReviewTime <= createdAt`），录入后复习过的保留当前进度（惩罚已被消费）
+  - ✅ 落地件：
+    - `ErrorReportEntity` 加 `penaltySnapshotJson` + `AppDatabase` v10→v11（destructive）
+    - `domain/FormulaIndex.kt`：两级分组纯函数 + 未学标记（7 单测）
+    - `domain/ErrorDeletePolicy.kt`：Ask/DeleteOnly/Restore 枚举 + `AppPreference` 持久化
+    - `ErrorReportProcessor`：`process` 惩罚前快照子卡；`deleteReport(report, restore)` 逐子卡 best-effort 还原（+6 单测）+ `SubCardPenaltySnapshot`
+    - `ui/viewmodel/ErrorBookViewModel.kt`：列表↔表单两态 + 公式池 + 删除策略（草稿随 VM 存活）
+    - `ui/screen/ErrorBookScreen.kt`：TopAppBar + 列表卡 + 新增表单（subject/chapter/sourceType chip + sourceTag 数字键盘 + 公式多选池灰显未学 + 跳学习确认）+ 删除对话框
+    - `MemoryScreen` 右下角 FAB → `AppRoute.ErrorBook` 路由；`SettingsScreen` 加「删除错题时」下拉
+  - ✅ compileDebugKotlin + 全套单测 **351 个全绿**（338→351）
+  - ⏳ **真机验收并入 Task 3.6**：FAB→列表→表单→公式多选→提交次日重现；删除「恢复计划」还原快照；未学灰显跳学习草稿续填；设置项生效
+  - ⏳ **留精修**：草稿跨进程死亡持久化（当前靠 VM 存活 + 返回箭头回表单，够用）；结业后自动回表单（当前靠返回箭头）
+  - Done：见下方原始验收标准
+  - ~~[ ] 原设计~~（保留供对照）：
   - **后端就绪**：`ErrorReportEntity` + `ErrorReportDao`(observeAll 倒序 / delete) + `ErrorReportProcessor`（Sprint 1 Task 1.6，插入即把所选公式 6 子卡 `S←MAX(S×0.5,0.5)` + 推次日刷新整点 + lapses+1）
   - **种子真实取值**：subject = 高数 / 线代 / 概率论；chapter = 高数 8 章 / 线代 4 章 / 概率论 4 章（由 `FormulaEntity.chapter` distinct 派生）
 

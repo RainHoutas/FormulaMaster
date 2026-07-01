@@ -51,6 +51,9 @@ sealed class AppRoute(val route: String) {
     data object FormulaLearnRitual : AppRoute("formula_learn_ritual/{formulaId}") {
         fun createRoute(formulaId: String) = "formula_learn_ritual/$formulaId"
     }
+
+    /** Sprint 3 Task 3.3：错题本二级页（memory FAB → 进入） */
+    data object ErrorBook : AppRoute("error_book")
 }
 
 // ── Tab 元数据 ─────────────────────────────────────────────────────────────────
@@ -180,6 +183,7 @@ fun MainScreen(navTarget: String? = null) {
                         }
                         navController.navigate(route)
                     },
+                    onOpenErrorBook = { navController.navigate(AppRoute.ErrorBook.route) },
                     contentPadding = innerPadding
                 )
             }
@@ -222,6 +226,23 @@ fun MainScreen(navTarget: String? = null) {
             }
             composable(AppRoute.Settings.route) {
                 SettingsScreen(contentPadding = innerPadding)
+            }
+
+            // ── Sprint 3 Task 3.3：错题本二级页 ──────────────────────────────
+            composable(
+                route = AppRoute.ErrorBook.route,
+                enterTransition    = { slideInHorizontally(initialOffsetX = { it }) },
+                exitTransition     = { slideOutHorizontally(targetOffsetX = { it }) },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+                popExitTransition  = { slideOutHorizontally(targetOffsetX = { it }) }
+            ) {
+                ErrorBookScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToLearn = { formulaId ->
+                        navController.navigate(AppRoute.FormulaLearnRitual.createRoute(formulaId))
+                    },
+                    contentPadding = innerPadding
+                )
             }
 
             // ── 公式详情（横向滑入）──────────────────────────────────────────

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.KaoyanSubject
 import com.example.formulamaster.domain.UseScene
@@ -45,7 +46,9 @@ data class AppSettings(
     /** 学习流程重构 Sprint 1 Task 1.1 — 应用场景(默认考研数学)。 */
     val useScene: UseScene = UseScene.Default,
     /** 学习流程重构 Sprint 1 Task 1.1 — 考研数学子科目;仅当 [useScene] = [UseScene.KaoyanMath] 时生效。 */
-    val kaoyanSubject: KaoyanSubject = KaoyanSubject.Default
+    val kaoyanSubject: KaoyanSubject = KaoyanSubject.Default,
+    /** 学习流程重构 Sprint 3 Task 3.3 — 删除错题时对复习计划的处理策略。 */
+    val errorDeletePolicy: ErrorDeletePolicy = ErrorDeletePolicy.Default
 ) {
     /** 实际生效的考试日期：用户已设过则用持久化值，否则取动态默认（当前年份 12-20）。 */
     val effectiveTargetExamDate: Long
@@ -113,7 +116,8 @@ class AppPreference(
                 firstLaunchCompletedAt = prefs[KEY_FIRST_LAUNCH_COMPLETED_AT] ?: 0L,
                 inputMode = prefs[KEY_INPUT_MODE]?.toInputModeOrDefault() ?: InputMode.Default,
                 useScene = prefs[KEY_USE_SCENE]?.toUseSceneOrDefault() ?: UseScene.Default,
-                kaoyanSubject = KaoyanSubject.fromName(prefs[KEY_KAOYAN_SUBJECT])
+                kaoyanSubject = KaoyanSubject.fromName(prefs[KEY_KAOYAN_SUBJECT]),
+                errorDeletePolicy = ErrorDeletePolicy.fromName(prefs[KEY_ERROR_DELETE_POLICY])
             )
         }
         .onEach { _isLoaded.value = true }
@@ -160,6 +164,11 @@ class AppPreference(
         dataStore.edit { it[KEY_KAOYAN_SUBJECT] = subject.name }
     }
 
+    /** 学习流程重构 Sprint 3 Task 3.3：写入删除错题策略。 */
+    suspend fun setErrorDeletePolicy(policy: ErrorDeletePolicy) {
+        dataStore.edit { it[KEY_ERROR_DELETE_POLICY] = policy.name }
+    }
+
     /** 解析 DataStore 存储的字符串到枚举；未知值（旧版本字段被删/改名）按默认处理。 */
     private fun String.toInputModeOrDefault(): InputMode = try {
         InputMode.valueOf(this)
@@ -182,6 +191,7 @@ class AppPreference(
         private val KEY_INPUT_MODE                = stringPreferencesKey("input_mode")
         private val KEY_USE_SCENE                 = stringPreferencesKey("use_scene")
         private val KEY_KAOYAN_SUBJECT            = stringPreferencesKey("kaoyan_subject")
+        private val KEY_ERROR_DELETE_POLICY       = stringPreferencesKey("error_delete_policy")
 
         private val Context.appDataStore: DataStore<Preferences>
             by preferencesDataStore(name = DATASTORE_NAME)

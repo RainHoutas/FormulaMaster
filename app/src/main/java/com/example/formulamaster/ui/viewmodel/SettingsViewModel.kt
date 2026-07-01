@@ -12,6 +12,7 @@ import com.example.formulamaster.data.RecognizerPreference
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.worker.DailyReminderWorker
+import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
@@ -80,6 +81,11 @@ class SettingsViewModel(
     /** Sprint 3 Task 3.1：设置输入方式（手写识别 / 纸笔自评）。 */
     fun setInputMode(mode: InputMode) {
         viewModelScope.launch { appPreference.setInputMode(mode) }
+    }
+
+    /** Sprint 3 Task 3.3：设置删除错题时对复习计划的处理策略。 */
+    fun setErrorDeletePolicy(policy: ErrorDeletePolicy) {
+        viewModelScope.launch { appPreference.setErrorDeletePolicy(policy) }
     }
 
     fun setDailyRefreshTime(hour: Int, minute: Int) {

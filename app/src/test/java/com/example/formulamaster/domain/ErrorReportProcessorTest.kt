@@ -278,6 +278,133 @@ class ErrorReportProcessorTest {
         assertTrue(db.subCardStateDao().getByFormulaId("never_studied").isEmpty())
     }
 
+    // ── Sprint 3 Task 3.3：快照捕获 + 删除还原语义 ──────────────────────────────
+
+    @Test
+    fun `process 快照记录施加惩罚前的子卡原值`() = runTest {
+        seedFormulaAndSubCards("f1", initialStability = 10.0, initialLapses = 2)
+
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "历年真题", "2024-1", listOf("f1")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+
+        val snaps: List<SubCardPenaltySnapshot> = Gson().fromJson(
+            db.errorReportDao().getById(id)!!.penaltySnapshotJson,
+            object : TypeToken<List<SubCardPenaltySnapshot>>() {}.type
+        )
+        assertEquals(6, snaps.size)
+        // 快照是**惩罚前**原值（S=10 / lapses=2），不是砍半后的 5 / 3
+        snaps.forEach {
+            assertEquals(10.0, it.stability, 1e-9)
+            assertEquals(2, it.lapses)
+        }
+        // 当前子卡确实已被砍半
+        db.subCardStateDao().getByFormulaId("f1").forEach {
+            assertEquals(5.0, it.stability, 1e-9)
+            assertEquals(3, it.lapses)
+        }
+    }
+
+    @Test
+    fun `未学公式录入错题时快照为 null`() = runTest {
+        db.formulaDao().insertAll(listOf(fakeFormula("never")))
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "其他", "0", listOf("never")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+        assertNull(db.errorReportDao().getById(id)!!.penaltySnapshotJson)
+    }
+
+    @Test
+    fun `deleteReport 仅删记录不还原子卡`() = runTest {
+        seedFormulaAndSubCards("f1", initialStability = 10.0, initialLapses = 0)
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "真题", "1", listOf("f1")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+        val record = db.errorReportDao().getById(id)!!
+
+        processor.deleteReport(record, restore = false)
+
+        assertNull(db.errorReportDao().getById(id))
+        // 子卡保持惩罚后状态（未还原）
+        db.subCardStateDao().getByFormulaId("f1").forEach {
+            assertEquals(5.0, it.stability, 1e-9)
+            assertEquals(1, it.lapses)
+        }
+    }
+
+    @Test
+    fun `deleteReport 恢复计划还原未复习过的子卡`() = runTest {
+        seedFormulaAndSubCards("f1", initialStability = 10.0, initialLapses = 2)
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "真题", "1", listOf("f1")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+        val record = db.errorReportDao().getById(id)!!
+
+        processor.deleteReport(record, restore = true)
+
+        assertNull(db.errorReportDao().getById(id))
+        // 6 张子卡全部还原到录入前（S=10 / lapses=2 / nextReview=0，seed 原值）
+        db.subCardStateDao().getByFormulaId("f1").forEach {
+            assertEquals(10.0, it.stability, 1e-9)
+            assertEquals(2, it.lapses)
+            assertEquals(0L, it.nextReviewTime)
+        }
+    }
+
+    @Test
+    fun `deleteReport 恢复时逐子卡保留录入后复习过的进度`() = runTest {
+        seedFormulaAndSubCards("f1", initialStability = 10.0, initialLapses = 0)
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "真题", "1", listOf("f1")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+        val record = db.errorReportDao().getById(id)!!
+
+        // 模拟录入后 c1 被真实复习：lastReviewTime > createdAt，进度前进
+        val c1 = db.subCardStateDao().get("f1", "c1")!!
+        db.subCardStateDao().update(
+            c1.copy(
+                stability = 20.0, lapses = 5,
+                lastReviewTime = fixedNow + 3_600_000L,      // 录入后 1 小时复习
+                nextReviewTime = fixedNow + 100_000_000L
+            )
+        )
+
+        processor.deleteReport(record, restore = true)
+
+        // c1：录入后复习过 → 保留新进度，不还原
+        val c1After = db.subCardStateDao().get("f1", "c1")!!
+        assertEquals(20.0, c1After.stability, 1e-9)
+        assertEquals(5, c1After.lapses)
+        assertEquals(fixedNow + 100_000_000L, c1After.nextReviewTime)
+        // c2~c6：未复习 → 还原到录入前（S=10 / lapses=0 / nextReview=0）
+        listOf("c2", "c3", "c4", "c5", "c6").forEach { code ->
+            val sc = db.subCardStateDao().get("f1", code)!!
+            assertEquals(10.0, sc.stability, 1e-9)
+            assertEquals(0, sc.lapses)
+            assertEquals(0L, sc.nextReviewTime)
+        }
+    }
+
+    @Test
+    fun `deleteReport 恢复计划遇 null 快照静默跳过仍删记录`() = runTest {
+        db.formulaDao().insertAll(listOf(fakeFormula("never")))
+        val id = processor.process(
+            ErrorReportInput("高数", "极限", "其他", "0", listOf("never")),
+            currentTimeMs = fixedNow, zoneId = utc
+        )
+        val record = db.errorReportDao().getById(id)!!
+        assertNull(record.penaltySnapshotJson)
+
+        // 不应抛异常
+        processor.deleteReport(record, restore = true)
+        assertNull(db.errorReportDao().getById(id))
+    }
+
     // ── 工具 ────────────────────────────────────────────────────────────────
 
     /** 固定 "now" = 2026-05-19 12:34:56 UTC，便于断言次日 08:00 nextReviewTime */

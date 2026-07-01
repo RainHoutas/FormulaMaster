@@ -60,6 +60,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.data.AppSettings
+import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.SprintModeManager
@@ -246,6 +247,14 @@ fun SettingsScreen(
             InputModeSection(
                 current = appSettings.inputMode,
                 onSelect = viewModel::setInputMode
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // Sprint 3 Task 3.3：错题本删除策略
+            ErrorDeletePolicySection(
+                current = appSettings.errorDeletePolicy,
+                onSelect = viewModel::setErrorDeletePolicy
             )
 
             Spacer(Modifier.height(32.dp))
@@ -921,6 +930,78 @@ private fun InputModeSection(
             }
         }
     }
+}
+
+// ── 错题本删除策略（Sprint 3 Task 3.3）────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ErrorDeletePolicySection(
+    current: ErrorDeletePolicy,
+    onSelect: (ErrorDeletePolicy) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("删除错题时", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it }
+            ) {
+                OutlinedTextField(
+                    value = current.label,
+                    onValueChange = {},
+                    label = { Text("对复习计划的处理") },
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    ErrorDeletePolicy.entries.forEach { policy ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(policy.label)
+                                    Text(
+                                        errorDeletePolicyDescription(policy),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onSelect(policy)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = errorDeletePolicyDescription(current),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun errorDeletePolicyDescription(policy: ErrorDeletePolicy): String = when (policy) {
+    ErrorDeletePolicy.Ask -> "每次删除都问：仅删记录，还是同时恢复复习计划。"
+    ErrorDeletePolicy.DeleteOnly -> "只删错题记录，复习计划保持不变。"
+    ErrorDeletePolicy.Restore -> "删除时把录入后没复习过的公式还原到录入前（复习过的保留）。"
 }
 
 // ── 考试目标日期（Sprint 2 Task 2.4）──────────────────────────────────────

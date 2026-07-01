@@ -24,6 +24,11 @@ import androidx.room.PrimaryKey
  * @param sourceType            历年真题 / 模拟卷 / 习题集 / 其他 chip
  * @param sourceTag             受限数字编码（如 "2024-18"）
  * @param wrongFormulaIdsJson   JSON 数组：错位公式的 formulaId 列表
+ * @param penaltySnapshotJson   录入当下、施加惩罚**之前**所选公式各子卡的
+ *                              (formulaId, cardType, stability, nextReviewTime, lapses) 快照 JSON
+ *                              （见 [com.example.formulamaster.domain.SubCardPenaltySnapshot]）。
+ *                              删除错题选「恢复计划」时据此逐子卡 best-effort 还原。
+ *                              旧记录 / 无子卡时为 null。Sprint 3 Task 3.3 新增。
  * @param note                  备注（暂不开放给 UI）
  */
 @Entity(
@@ -38,5 +43,6 @@ data class ErrorReportEntity(
     val sourceType: String,
     val sourceTag: String,
     val wrongFormulaIdsJson: String,
+    val penaltySnapshotJson: String? = null,
     val note: String? = null
 )

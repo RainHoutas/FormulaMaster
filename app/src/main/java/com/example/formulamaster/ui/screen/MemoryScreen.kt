@@ -1,6 +1,7 @@
 package com.example.formulamaster.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,9 +16,13 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +41,7 @@ import com.example.formulamaster.ui.viewmodel.MemoryViewModel
 @Composable
 fun MemoryScreen(
     onFormulaClick: (String, Boolean) -> Unit,
+    onOpenErrorBook: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
     viewModel: MemoryViewModel = viewModel(factory = MemoryViewModel.factory(LocalContext.current))
 ) {
@@ -50,21 +56,36 @@ fun MemoryScreen(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start  = contentPadding.calculateStartPadding(LayoutDirection.Ltr) + 16.dp,
-            end    = contentPadding.calculateEndPadding(LayoutDirection.Ltr) + 16.dp,
-            top    = contentPadding.calculateTopPadding() + 12.dp,
-            bottom = contentPadding.calculateBottomPadding() + 12.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(uiState.formulas, key = { it.formula.formulaId }) { item ->
-            FormulaCard(
-                item = item,
-                onClick = { onFormulaClick(item.formula.formulaId, item.isActivated) }
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start  = contentPadding.calculateStartPadding(LayoutDirection.Ltr) + 16.dp,
+                end    = contentPadding.calculateEndPadding(LayoutDirection.Ltr) + 16.dp,
+                top    = contentPadding.calculateTopPadding() + 12.dp,
+                bottom = contentPadding.calculateBottomPadding() + 12.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(uiState.formulas, key = { it.formula.formulaId }) { item ->
+                FormulaCard(
+                    item = item,
+                    onClick = { onFormulaClick(item.formula.formulaId, item.isActivated) }
+                )
+            }
+        }
+
+        // Sprint 3 Task 3.3：错题本入口 FAB（右下角，悬在底部导航栏上方）
+        FloatingActionButton(
+            onClick = onOpenErrorBook,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = contentPadding.calculateEndPadding(LayoutDirection.Ltr) + 16.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp
+                )
+        ) {
+            Icon(Icons.Filled.Warning, contentDescription = "错题本")
         }
     }
 }
