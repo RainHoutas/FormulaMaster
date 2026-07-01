@@ -414,6 +414,8 @@ related:
     - TestViewModel combine 加 `errorReportDao.observeAll()` + tally → 答错震动强度用 `item.isLeech`
     - 死代码 ReviewCard（旧 ReviewScreen 已删，无调用方）一并改 `item.isLeech`
     - **零散 `lapses >= 4` 魔数彻底清光**，leech 定义唯一出处 = `LeechDetector`
+  - 🐛 **真机验收发现并修复（2026-07-01）**：`LeechBanner` 写死「已错 $lapses 次」，靠错题标记判 leech 时 lapses=0 → 显示矛盾的「已错 0 次」。改为只列真正触发的原因（lapses≥4 显「已错 N 次」/ 标记≥2 显「近 7 日错题标记 N 次」，都够则都显）。
+  - ⏳ **待补（2026-07-01 用户提出）**：复习界面（RouterReviewScreen）也应加「顽固」提醒 chip（补齐 leech 全 App 可见的最后一块，复习页当前不显示 leech）——放真机验完 C2/C4/C6 后实现，避免打断验收。设计：卡顶 chip 区加红色「顽固」chip，与强标记/加强卡 chip 并排。
   - ✅ 全套单测 **364 个全绿**（351→364）
   - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech（详情横幅/测试震动同步）
   - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech
@@ -432,11 +434,17 @@ related:
   - ⏳ **真机验收并入 Task 3.6**：C2 判错顶部红框 + 下方「你选的（错）」对照；**暗色模式对比度重点核对**（colorbox 浅底配 textcolor 深字）
   - Done：KaTeX 着色渲染真机验过 + `ClozeSkeletonBuilderTest` 加判分态用例 ✓
 
-- [ ] **Task 3.6 单测 + 真机验收**
-  - C4/C6 卡型真机走通（含路由器轮转纳入新卡型）
-  - 错题本闭环真机：新增错题 → 选公式 → 次日该公式 due 重现
-  - C2 判错着色真机截图确认
-  - 全套单测 ≥ 现 320 + 新增覆盖
+- [x] **Task 3.6 单测 + 真机验收** — ✅ **真机验收通过（2026-07-01）**，剩「复习顽固 chip」一小项延后
+  - ✅ C3.3 错题本闭环真机（见 Task 3.3）+ 3.4 leech 红卡真机（Bayes lapses=0 靠 2 错题标记判红，DB 铁证）
+  - ✅ C4 推导 / C6 反查 / C2 判错着色 真机走通
+  - 🐛 **真机验收现场修复（2026-07-01，均已 DB/截图验证）**：
+    1. **C2 着色重做**：`\colorbox` 整框底色太重/过度吸睛（用户 P1）→ 改「对=原样不上色 / 错=公式染红字 `\boxed{\textcolor{#E53935}{...}}`」，暗色更清爽；`ClozeSkeletonBuilderTest` 5 例同步改
+    2. **C5 混入轮转**：C5 延后却仍随 due 子卡出现 → 落通用「看答案」空壳。`buildSessionInputs` 剔除 C5
+    3. **C6 单章回落**：同章 <2 公式的 C6 回落「看答案」（正态/泊松/期望方差）→ `buildSessionInputs` 剔除同章<2 的 C6，只留能出真卡的（Bayes/全概率）。DB 铁证：5 张 due 中正确排除 c5+2 张单章 c6
+    4. **LeechBanner「已错 0 次」**：错题标记判 leech 时 lapses=0 文案矛盾 → 改按触发原因列（见 Task 3.4）
+  - ✅ 全套单测 **364 全绿**
+  - ⏳ **延后一小项**：复习界面（RouterReviewScreen）加「顽固」chip（补齐 leech 全 App 可见）——用户提出，需 VM 暴露当前公式 isLeech + 卡顶加 chip；下次实现
+  - ⚠ **真机 DB 调试沉淀**：复习会话**同日持久化**（review_session_progress），改路由/卡型过滤后旧会话会被「续接」→ 验证前须清 `review_session_progress` 表让会话重建，否则看到的是旧残留
 
 ### Sprint 3 留作 Sprint 4 起点的债
 

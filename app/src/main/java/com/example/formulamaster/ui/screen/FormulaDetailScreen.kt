@@ -50,6 +50,7 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.DerivationStepParser
+import com.example.formulamaster.domain.LeechDetector
 import com.example.formulamaster.domain.model.DerivationStep
 import com.example.formulamaster.ui.component.MathFormulaView
 import com.example.formulamaster.ui.viewmodel.MemoryViewModel
@@ -172,7 +173,7 @@ fun FormulaDetailScreen(
             // ── 顽固难点提示 ─────────────────────────────────────────────────
             // Sprint 3 Task 3.4：leech 判定全 App 统一走 LeechDetector（lapses 或 近7日错题标记）
             if (item.isLeech) {
-                LeechBanner(item.lapses, formula.tags)
+                LeechBanner(item.lapses, item.recentErrorMarks, formula.tags)
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -406,7 +407,15 @@ private fun BlockedBanner(blockedAtMs: Long, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun LeechBanner(lapses: Int, tags: String) {
+private fun LeechBanner(lapses: Int, recentErrorMarks: Int, tags: String) {
+    // Sprint 3 Task 3.4：只展示真正触发 leech 的原因（够阈值才列），避免「已错 0 次」自相矛盾
+    val reasons = buildList {
+        if (lapses >= LeechDetector.LAPSE_THRESHOLD) add("已错 $lapses 次")
+        if (recentErrorMarks >= LeechDetector.ERROR_MARK_THRESHOLD) {
+            add("近 ${LeechDetector.ERROR_MARK_WINDOW_DAYS} 日错题标记 $recentErrorMarks 次")
+        }
+    }
+    val reasonSuffix = if (reasons.isEmpty()) "" else " · " + reasons.joinToString(" · ")
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -415,7 +424,7 @@ private fun LeechBanner(lapses: Int, tags: String) {
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(
-                text = "⚠️ 顽固难点 · 已错 $lapses 次",
+                text = "⚠️ 顽固难点$reasonSuffix",
                 style = MaterialTheme.typography.titleSmall
             )
             if (tags.isNotBlank()) {

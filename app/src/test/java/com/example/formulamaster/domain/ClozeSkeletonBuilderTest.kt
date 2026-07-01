@@ -94,46 +94,40 @@ class ClozeSkeletonBuilderTest {
     // ── 判分态 buildGraded（Task 3.5）─────────────────────────────────────────
 
     @Test
-    fun `判分态答对单空填正确答案 + 绿底`() {
+    fun `判分态答对单空保持原样不上色`() {
         val latex = "P(A)=\\sum P(B_{i})P(A|B_{i})"
         val blanks = listOf(blank(1, "P(B_{i})P(A|B_{i})"))
         val out = ClozeSkeletonBuilder.buildGraded(latex, blanks, mapOf(1 to true))
-        assertEquals(
-            "P(A)=\\sum \\colorbox{#C8E6C9}{\$\\textcolor{#1B5E20}{\\boxed{P(B_{i})P(A|B_{i})}}\$}",
-            out
-        )
+        assertEquals("P(A)=\\sum \\boxed{P(B_{i})P(A|B_{i})}", out)
     }
 
     @Test
-    fun `判分态答错单空仍填正确答案 + 红底`() {
+    fun `判分态答错单空填正确答案 + 公式染红`() {
         val latex = "f=PLACEHOLDER"
         val blanks = listOf(blank(1, "PLACEHOLDER"))
         val out = ClozeSkeletonBuilder.buildGraded(latex, blanks, mapOf(1 to false))
-        assertEquals(
-            "f=\\colorbox{#FFCDD2}{\$\\textcolor{#B71C1C}{\\boxed{PLACEHOLDER}}\$}",
-            out
-        )
+        assertEquals("f=\\boxed{\\textcolor{#E53935}{PLACEHOLDER}}", out)
     }
 
     @Test
-    fun `判分态多空混合对错分别绿红`() {
+    fun `判分态多空混合对原样错染红`() {
         val latex = "E(aX+b)=aE(X)+b; D(aX+b)=a^{2}D(X)"
         val blanks = listOf(blank(1, "aE(X)+b"), blank(2, "a^{2}D(X)"))
         val out = ClozeSkeletonBuilder.buildGraded(latex, blanks, mapOf(1 to true, 2 to false))
         assertEquals(
-            "E(aX+b)=\\colorbox{#C8E6C9}{\$\\textcolor{#1B5E20}{\\boxed{aE(X)+b}}\$}; " +
-                "D(aX+b)=\\colorbox{#FFCDD2}{\$\\textcolor{#B71C1C}{\\boxed{a^{2}D(X)}}\$}",
+            "E(aX+b)=\\boxed{aE(X)+b}; " +
+                "D(aX+b)=\\boxed{\\textcolor{#E53935}{a^{2}D(X)}}",
             out
         )
     }
 
     @Test
-    fun `判分态 perBlankCorrect 缺失视为答错红底`() {
+    fun `判分态 perBlankCorrect 缺失视为答错染红`() {
         val latex = "f=PLACEHOLDER"
         val blanks = listOf(blank(1, "PLACEHOLDER"))
         val out = ClozeSkeletonBuilder.buildGraded(latex, blanks, emptyMap())
-        assertTrue(out.contains("#FFCDD2"))
-        assertFalse(out.contains("#C8E6C9"))
+        assertTrue(out.contains("#E53935"))
+        assertTrue(out.contains("\\textcolor"))
     }
 
     @Test

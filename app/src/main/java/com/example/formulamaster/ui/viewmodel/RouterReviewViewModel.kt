@@ -180,13 +180,28 @@ class RouterReviewViewModel(
         // 1. 按 formulaId 聚合
         val grouped: Map<String, List<SubCardStateEntity>> = dueSubCards.groupBy { it.formulaId }
 
-        // 2. 每个公式内部排序：isReinforced=true 优先 + nextReviewTime 升序
-        val dueCardsByFormula: Map<String, List<CardType>> = grouped.mapValues { (_, cards) ->
+        // 未实装 / 无法出真卡的卡型剔除，避免回落成通用"看答案"（2026-07-01 真机验收）：
+        //   - C5 易混辨析：延后 Sprint 4（缺 diffExplanation 内容 + 无专属面板）
+        //   - C6 题型反查：需同章 ≥2 公式才能凑候选池，否则 buildC6Card 回落
+        val subjectFormulas = formulaRepository.observeFormulasFor(settings.kaoyanSubject).first()
+        val chapterCounts = subjectFormulas.groupingBy { it.chapter }.eachCount()
+        val chapterOf = subjectFormulas.associate { it.formulaId to it.chapter }
+
+        // 2. 每个公式内部排序：isReinforced=true 优先 + nextReviewTime 升序；并过滤未实装卡型
+        val dueCardsByFormula: Map<String, List<CardType>> = grouped.mapValues { (formulaId, cards) ->
+            val chapterCount = chapterOf[formulaId]?.let { chapterCounts[it] } ?: 0
             cards.sortedWith(
                 compareByDescending<SubCardStateEntity> { it.isReinforced }
                     .thenBy { it.nextReviewTime }
             ).mapNotNull { CardType.fromCode(it.cardType) }
-        }
+                .filter { ct ->
+                    when (ct) {
+                        CardType.C5_Discrimination -> false
+                        CardType.C6_TypicalProblem -> chapterCount >= 2
+                        else -> true
+                    }
+                }
+        }.filterValues { it.isNotEmpty() }   // 过滤后无卡可考的公式剔除
 
         // 3. 公式间排序：先按"是否含强标记卡"降序（让有强标记的公式靠前），
         //    再按 examWeight 降序，最后按 formulaId 稳定排序
