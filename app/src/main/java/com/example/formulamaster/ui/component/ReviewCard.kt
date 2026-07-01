@@ -177,9 +177,10 @@ fun ReviewCard(
         }
 
         // ── Task 5.4：顽固难点（Leech）tags 提示 ──────────────────────────
-        // 仅在评分阶段且 lapses ≥ 4 时出现，展示应用场景标签，辅助记忆关联
+        // 仅在评分阶段且判为 leech 时出现，展示应用场景标签，辅助记忆关联
+        // Sprint 3 Task 3.4：leech 判定统一走 LeechDetector（本组件当前无调用方，属历史遗留）
         AnimatedVisibility(
-            visible = step == ReviewStep.RATING && item.lapses >= 4,
+            visible = step == ReviewStep.RATING && item.isLeech,
             enter = fadeIn(),
             exit = fadeOut()
         ) {

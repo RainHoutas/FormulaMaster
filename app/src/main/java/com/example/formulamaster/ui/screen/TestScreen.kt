@@ -237,7 +237,7 @@ fun TestScreen(
                                     viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
                                 },
                                 onSubmitError = { costMs ->
-                                    val isLeech = item.lapses >= 4
+                                    val isLeech = item.isLeech
                                     vibrateError(context, durationMs = if (isLeech) 400L else 200L)
                                     flashError = true
                                     viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)
@@ -264,7 +264,7 @@ fun TestScreen(
                                     viewModel.submitJudgment(item, isCorrect = true, costTimeMs = costMs)
                                 },
                                 onSubmitError    = { costMs ->
-                                    val isLeech = item.lapses >= 4
+                                    val isLeech = item.isLeech
                                     vibrateError(context, durationMs = if (isLeech) 400L else 200L)
                                     flashError = true
                                     viewModel.submitJudgment(item, isCorrect = false, costTimeMs = costMs)

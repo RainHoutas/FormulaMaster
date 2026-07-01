@@ -400,11 +400,24 @@ related:
   - ⚠ **开工前最后确认**：FormulaIndex 抽取边界 + penaltySnapshot 的 best-effort 覆盖语义
   - Done：FAB→列表→新增表单→公式多选（灰显未学+草稿续填）→提交次日重现真机验过；删除撤销精确还原快照验过；设置项生效
 
-- [ ] **Task 3.4 Leech 升级**（错题反向联动）— RFC 报告 §7
-  - 现状：`isLeech = lapses >= 4`（MemoryScreen）
+- [x] **Task 3.4 Leech 升级**（错题反向联动）— RFC 报告 §7 — ✅ 代码完成（2026-07-01）
+  - 现状：`isLeech = lapses >= 4`（MemoryScreen 内联魔数）
   - 升级：新增「7 日内被错题反向标记 ≥ 2 次」也判 leech
-  - ⚠ 依赖 Task 3.3（错题本写入 ErrorReport 后才有「被标记」信号）；需查 `ErrorReportDao` 按 formulaId + 时间窗计数
-  - Done：聚合逻辑加时间窗计数；单测覆盖两条 leech 触发路径
+  - ✅ 落地件：
+    - `domain/LeechDetector.kt`：纯函数 `isLeech(lapses, recentErrorMarks)` = `lapses≥4 || recentErrorMarks≥2`，阈值常量化（6 单测）
+    - `domain/ErrorMarkTally.kt`：`countRecent(reports, now)` 近 7 日窗口 + 按错题条数去重计数（7 单测）
+    - `FormulaWithState` 加 `recentErrorMarks` 字段 + `isLeech` 派生（判定外提，UI 不再内联阈值）
+    - `MemoryViewModel`：combine 加 `errorReportDao.observeAll()`，解析 wrongFormulaIdsJson → ErrorMarkTally → 注入 recentErrorMarks
+    - `MemoryScreen`：`isLeech = item.isLeech`（替代 `lapses >= 4`）
+  - ✅ **全 App 统一 leech 判定（2026-07-01 用户拍板：leech 就是 leech，不该分页面）**：
+    - FormulaDetailScreen 顶部 leech 横幅 → `item.isLeech`（白捡，共用 MemoryViewModel 数据流）
+    - TestViewModel combine 加 `errorReportDao.observeAll()` + tally → 答错震动强度用 `item.isLeech`
+    - 死代码 ReviewCard（旧 ReviewScreen 已删，无调用方）一并改 `item.isLeech`
+    - **零散 `lapses >= 4` 魔数彻底清光**，leech 定义唯一出处 = `LeechDetector`
+  - ✅ 全套单测 **364 个全绿**（351→364）
+  - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech（详情横幅/测试震动同步）
+  - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech
+  - Done：聚合逻辑加时间窗计数 ✓；单测覆盖两条 leech 触发路径 ✓
 
 - [x] **Task 3.5 复习 C2 判错顶部公式骨架着色**（用户 P1，2026-06-04）— ✅ 代码完成待真机验收（2026-06-22）
   - 现状：`C2ClozePane` 提交后只在下方逐空标 ✓/✗，顶部骨架只实时填入不标对错

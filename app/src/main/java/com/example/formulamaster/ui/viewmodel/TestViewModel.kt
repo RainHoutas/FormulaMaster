@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
+import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
@@ -13,6 +14,7 @@ import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.SprintModeManager
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,8 +67,12 @@ class TestViewModel(
     private val subCardStateDao: SubCardStateDao,
     private val reviewLogDao: ReviewLogDao,
     private val ocrFeedbackDao: OcrFeedbackDao,
-    private val appPreference: AppPreference
+    private val errorReportDao: ErrorReportDao,
+    private val appPreference: AppPreference,
+    private val gson: Gson = Gson()
 ) : ViewModel() {
+
+    private val stringListType = object : TypeToken<List<String>>() {}.type
 
     private val _uiState = MutableStateFlow(TestUiState())
     val uiState: StateFlow<TestUiState> = _uiState.asStateFlow()
@@ -89,15 +96,21 @@ class TestViewModel(
         viewModelScope.launch {
             combine(
                 repository.getAll(),
-                subCardStateDao.getAllStates()
-            ) { formulas, subCards ->
+                subCardStateDao.getAllStates(),
+                // Sprint 3 Task 3.4：错题反向标记参与 leech 判定（答错震动强度全 App 统一）
+                errorReportDao.observeAll()
+            ) { formulas, subCards, reports ->
                 val formulaMap = formulas.associateBy { it.formulaId }
+                val markMap = ErrorMarkTally.countRecent(
+                    reports.map { it.createdAt to parseIds(it.wrongFormulaIdsJson) },
+                    System.currentTimeMillis()
+                )
                 // Task 2.6：从子卡聚合派生整体进度，仅取「已掌握(3)」公式入测试队列
                 SubCardAggregator.deriveAll(subCards)
                     .filterValues { it.learningState == SubCardAggregator.STATE_MASTERED }
                     .mapNotNull { (formulaId, derived) ->
                         formulaMap[formulaId]?.let { formula ->
-                            FormulaWithState(formula, derived)
+                            FormulaWithState(formula, derived, markMap[formulaId] ?: 0)
                         }
                     }
             }.collect { queue ->
@@ -243,6 +256,9 @@ class TestViewModel(
         }
     }
 
+    private fun parseIds(json: String): List<String> =
+        runCatching { gson.fromJson<List<String>>(json, stringListType) }.getOrNull() ?: emptyList()
+
     companion object {
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -255,6 +271,7 @@ class TestViewModel(
                     db.subCardStateDao(),
                     db.reviewLogDao(),
                     db.ocrFeedbackDao(),
+                    db.errorReportDao(),
                     AppContainer.appPreference(app)
                 ) as T
             }

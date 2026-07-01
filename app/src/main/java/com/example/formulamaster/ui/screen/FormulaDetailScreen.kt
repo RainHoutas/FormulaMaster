@@ -170,7 +170,8 @@ fun FormulaDetailScreen(
             }
 
             // ── 顽固难点提示 ─────────────────────────────────────────────────
-            if (item.lapses >= 4) {
+            // Sprint 3 Task 3.4：leech 判定全 App 统一走 LeechDetector（lapses 或 近7日错题标记）
+            if (item.isLeech) {
                 LeechBanner(item.lapses, formula.tags)
                 Spacer(Modifier.height(12.dp))
             }

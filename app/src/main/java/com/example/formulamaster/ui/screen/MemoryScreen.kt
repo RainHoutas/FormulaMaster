@@ -97,7 +97,8 @@ private fun FormulaCard(
     item: FormulaWithState,
     onClick: () -> Unit
 ) {
-    val isLeech = item.lapses >= 4
+    // Sprint 3 Task 3.4：leech 判定外提到 LeechDetector（lapses≥4 或 近7日错题标记≥2）
+    val isLeech = item.isLeech
 
     ElevatedCard(
         onClick = onClick,

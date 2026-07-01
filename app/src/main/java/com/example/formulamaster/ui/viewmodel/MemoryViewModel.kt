@@ -6,10 +6,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
+import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.repository.FormulaRepository
+import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.SubCardAggregator
 import com.example.formulamaster.domain.model.FormulaWithState
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,11 +43,15 @@ data class MemoryUiState(
 class MemoryViewModel(
     private val repository: FormulaRepository,
     private val subCardStateDao: SubCardStateDao,
-    private val appPreference: AppPreference
+    private val errorReportDao: ErrorReportDao,
+    private val appPreference: AppPreference,
+    private val gson: Gson = Gson()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
+
+    private val stringListType = object : TypeToken<List<String>>() {}.type
 
     init {
         viewModelScope.launch {
@@ -56,11 +64,20 @@ class MemoryViewModel(
                 .flatMapLatest { subject ->
                     combine(
                         repository.observeFormulasFor(subject),
-                        subCardStateDao.getAllStates()
-                    ) { formulas, subCards ->
+                        subCardStateDao.getAllStates(),
+                        // Sprint 3 Task 3.4：错题反向标记参与 leech 判定。
+                        errorReportDao.observeAll()
+                    ) { formulas, subCards, reports ->
                         val derivedMap = SubCardAggregator.deriveAll(subCards)
+                        // 近 7 日各公式被错题标记的去重条数（供 LeechDetector 第 2 条路径）。
+                        val parsed = reports.map { it.createdAt to parseIds(it.wrongFormulaIdsJson) }
+                        val markMap = ErrorMarkTally.countRecent(parsed, System.currentTimeMillis())
                         formulas.map { formula ->
-                            FormulaWithState(formula, derivedMap[formula.formulaId])
+                            FormulaWithState(
+                                formula = formula,
+                                derived = derivedMap[formula.formulaId],
+                                recentErrorMarks = markMap[formula.formulaId] ?: 0
+                            )
                         }
                     }
                 }
@@ -69,6 +86,9 @@ class MemoryViewModel(
                 }
         }
     }
+
+    private fun parseIds(json: String): List<String> =
+        runCatching { gson.fromJson<List<String>>(json, stringListType) }.getOrNull() ?: emptyList()
 
     companion object {
         fun factory(context: Context) = object : ViewModelProvider.Factory {
@@ -79,6 +99,7 @@ class MemoryViewModel(
                 return MemoryViewModel(
                     FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
                     db.subCardStateDao(),
+                    db.errorReportDao(),
                     AppContainer.appPreference(app)
                 ) as T
             }
