@@ -26,6 +26,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -107,6 +109,7 @@ fun RouterReviewScreen(
                     val isReinforced = uiState.currentSubCard?.isReinforced == true
                     val title = uiState.currentFormula?.title.orEmpty()
                     val latex = uiState.currentFormula?.latexCode.orEmpty()
+                    CompositionLocalProvider(LocalCardIsLeech provides uiState.currentIsLeech) {
                     when (action.cardType) {
                         CardType.C1_Recognition -> C1RecognitionPane(
                             action = action,
@@ -180,6 +183,7 @@ fun RouterReviewScreen(
                         }
 
                         else -> ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
+                    }
                     }
                 }
 
@@ -927,6 +931,13 @@ private fun ShowCardPane(
 
 // ── 共用：顶部 chips 行 + 评分行 ────────────────────────────────────────────────
 
+/**
+ * 当前卡片公式是否为顽固节点（leech）。Sprint 3 Task 3.4 收尾：
+ * 用 CompositionLocal 跨层传给 [CardHeaderChips]，避免逐个面板签名加参数。
+ * 在卡片分发处 provide `uiState.currentIsLeech`。
+ */
+private val LocalCardIsLeech = compositionLocalOf { false }
+
 @Composable
 private fun CardHeaderChips(
     cardType: CardType,
@@ -939,6 +950,19 @@ private fun CardHeaderChips(
         verticalAlignment = Alignment.CenterVertically
     ) {
         CardTypeChip(cardType)
+        if (LocalCardIsLeech.current) {
+            Surface(
+                color = MaterialTheme.colorScheme.error,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "🔥 顽固",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onError
+                )
+            }
+        }
         if (isReinforced) {
             Surface(
                 color = MaterialTheme.colorScheme.errorContainer,

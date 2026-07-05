@@ -415,7 +415,7 @@ related:
     - 死代码 ReviewCard（旧 ReviewScreen 已删，无调用方）一并改 `item.isLeech`
     - **零散 `lapses >= 4` 魔数彻底清光**，leech 定义唯一出处 = `LeechDetector`
   - 🐛 **真机验收发现并修复（2026-07-01）**：`LeechBanner` 写死「已错 $lapses 次」，靠错题标记判 leech 时 lapses=0 → 显示矛盾的「已错 0 次」。改为只列真正触发的原因（lapses≥4 显「已错 N 次」/ 标记≥2 显「近 7 日错题标记 N 次」，都够则都显）。
-  - ⏳ **待补（2026-07-01 用户提出）**：复习界面（RouterReviewScreen）也应加「顽固」提醒 chip（补齐 leech 全 App 可见的最后一块，复习页当前不显示 leech）——放真机验完 C2/C4/C6 后实现，避免打断验收。设计：卡顶 chip 区加红色「顽固」chip，与强标记/加强卡 chip 并排。
+  - ✅ **复习界面「顽固」chip（2026-07-01 收尾）**：RouterReviewScreen 卡顶加红色「🔥 顽固」chip，与强标记/加强卡 chip 并排，补齐 leech 全 App 可见。实现：`RouterReviewViewModel` 加 `errorReportDao` + renderUiState 算当前公式 `currentIsLeech`（聚合 lapses + ErrorMarkTally 近7日标记 → LeechDetector）；UI 用 **CompositionLocal**（`LocalCardIsLeech`）跨层传给 CardHeaderChips，**零面板签名改动**。真机验证：Bayes（2 错题标记）显 chip、全概率（非 leech）不显 ✅。364 单测全绿。
   - ✅ 全套单测 **364 个全绿**（351→364）
   - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech（详情横幅/测试震动同步）
   - ⏳ **真机验收并入 Task 3.6**：提交 2 条错题标同一已学公式（7 日内）→ Memory 卡变红 leech

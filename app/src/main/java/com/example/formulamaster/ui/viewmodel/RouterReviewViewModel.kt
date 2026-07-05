@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.formulamaster.data.AppContainer
 import com.example.formulamaster.data.AppPreference
 import com.example.formulamaster.data.AppSettings
+import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.local.entity.FormulaEntity
 import com.example.formulamaster.data.local.entity.SubCardStateEntity
@@ -15,6 +16,8 @@ import com.example.formulamaster.data.repository.ReviewEventProcessor
 import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.ErrorMarkTally
+import com.example.formulamaster.domain.LeechDetector
 import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.DerivationStepParser
 import com.example.formulamaster.domain.ReviewRouter
@@ -66,6 +69,8 @@ data class RouterReviewUiState(
     val currentC6Options: List<C6Option> = emptyList(),
     /** C6 当前题面的正确公式 id 集合（当前恒为单条 = 题面所属公式）。 */
     val currentC6CorrectIds: Set<String> = emptySet(),
+    /** 当前公式是否为顽固节点（leech）：卡顶展示「顽固」chip，与记忆卡/详情横幅同一判定。 */
+    val currentIsLeech: Boolean = false,
     val isSessionEnd: Boolean = false,
     /** "Fresh" / "Resumed" / "FallbackToFresh"；UI 可在调试模式 toast 提示，生产可忽略 */
     val initType: String? = null
@@ -95,6 +100,7 @@ class RouterReviewViewModel(
     private val sessionRepo: ReviewSessionRepository,
     private val processor: ReviewEventProcessor,
     private val subCardDao: SubCardStateDao,
+    private val errorReportDao: ErrorReportDao,
     private val formulaRepository: FormulaRepository,
     private val appPreference: AppPreference,
     private val clock: () -> Long = System::currentTimeMillis
@@ -108,6 +114,10 @@ class RouterReviewViewModel(
     private var sessionDateMs: Long = 0L
 
     private val stringListType = object : TypeToken<List<String>>() {}.type
+
+    /** 解析错题的 wrongFormulaIdsJson；损坏返回空。 */
+    private fun parseWrongIds(json: String): List<String> =
+        runCatching { Gson().fromJson<List<String>>(json, stringListType) }.getOrNull() ?: emptyList()
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -293,6 +303,17 @@ class RouterReviewViewModel(
             null
         }
 
+        // 顽固判定：聚合 lapses（子卡求和）+ 近 7 日错题标记，与记忆卡/详情横幅同一 LeechDetector
+        val isLeech = if (formula != null) {
+            val lapses = subCardDao.getByFormulaId(formula.formulaId).sumOf { it.lapses }
+            val reports = errorReportDao.observeAll().first()
+            val marks = ErrorMarkTally.countRecent(
+                reports.map { it.createdAt to parseWrongIds(it.wrongFormulaIdsJson) },
+                clock()
+            )[formula.formulaId] ?: 0
+            LeechDetector.isLeech(lapses, marks)
+        } else false
+
         _uiState.update {
             it.copy(
                 isLoading           = false,
@@ -305,6 +326,7 @@ class RouterReviewViewModel(
                 currentC6Problem    = c6?.problem.orEmpty(),
                 currentC6Options    = c6?.options.orEmpty(),
                 currentC6CorrectIds = c6?.correctIds.orEmpty(),
+                currentIsLeech      = isLeech,
                 isSessionEnd        = action is ReviewRouter.NextAction.SessionEnd,
                 initType            = initType ?: it.initType
             )
@@ -368,6 +390,7 @@ class RouterReviewViewModel(
                     sessionRepo       = sessionRepo,
                     processor         = processor,
                     subCardDao        = db.subCardStateDao(),
+                    errorReportDao    = db.errorReportDao(),
                     formulaRepository = FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
                     appPreference     = AppContainer.appPreference(app)
                 ) as T
