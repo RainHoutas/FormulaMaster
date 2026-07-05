@@ -50,27 +50,30 @@ ui/theme/            → Material 3 主题
 
 ## 当前进度
 
-**阶段**：原型阶段（01）✅ + 打磨完善阶段（02）✅ 均已归档，**当前：学习流程重构阶段（03）· Sprint 3 启动**。
+**阶段**：原型阶段（01）✅ + 打磨完善阶段（02）✅ 均已归档，**当前：学习流程重构阶段（03）· Sprint 1-3 全部完成并已 push**。
 
 - **Sprint 1 ✅**：数据基础（`FormulaEntity` 9→18 字段 + `DerivationStep` 对象数组 + `FormulaSubjectMap` 多对多 + 6 类子卡 schema + 错题反向 schema + 30 公式 MVP）
-- **Sprint 2 ✅**（commit `ea976c4` 已 push）：七步学习仪式 + 复习路由器（轮转/粘卡/加强卡/默写/同日续接）+ C1 识别 / C2 加权 cloze / C3 条件先行 三卡型 + 子卡 FSRS 为唯一真相源（母卡 study_states 退役）。320 单测全绿，真机三项回归通过。
-- **Sprint 3（进行中）**：数据就绪卡型 C4 推导 + C6 题型反查 + 错题本 UI 闭环 + 复习 C2 判错顶部着色（用户 P1）。**C5 易混延后 Sprint 4**（缺 diffExplanation 内容）。
-**下一个 Task**：3.1 C4 推导卡（开工前需问三档自评→FSRS 评分映射等二级决策）。
+- **Sprint 2 ✅**：七步学习仪式 + 复习路由器（轮转/粘卡/加强卡/默写/同日续接）+ C1 识别 / C2 加权 cloze / C3 条件先行 三卡型 + 子卡 FSRS 为唯一真相源（母卡 study_states 退役）。
+- **Sprint 3 ✅**（2026-07-01 收官，代码+真机全过）：C4 推导 + C6 题型反查 + 错题本 UI 闭环（含删除快照 best-effort 还原）+ 复习 C2 判错着色 + Leech 升级（错题反向标记，全 App 统一判定 + 复习顽固 chip）。**C5 易混延后 Sprint 4**（缺 diffExplanation 内容）。364 单测全绿。
+**下一个阶段**：Sprint 4（公式族图谱 + 学习阶段切换 + C5 易混辨析）。开工前扫改进点池排 Task + 过二级决策。
+> 当前架构现状详见 [`docs/design/架构总览.md`](docs/design/架构总览.md)（新对话对接现状的权威入口）。
 
 ## 🚨 新对话开工前必读（强制顺序）
 
 按顺序读取以下文件，缺一不可：
 
 1. **`TODO.md`**（项目根）— 指针文件，导航到当前阶段
-2. **`docs/RFC_学习流程重构.md`** 🔥 — **当前阶段设计底稿**，所有 Sprint 决策来源
-3. **`docs/phases/03_学习流程重构_TODO.md`** — 当前 Sprint 的 Task 清单与 Done 标准
-4. **`docs/改进点池.md`** — 新想法集散地、分类标签、已拒绝/搁置决策
+2. **`docs/design/架构总览.md`** 🔥 — **当前系统架构 + 状态全景**，新对话对接现状的第一入口（防止读到原型期过时信息）
+3. **`docs/planning/RFC_学习流程重构.md`** — **当前阶段设计底稿**，所有 Sprint 决策来源
+4. **`docs/phases/03_学习流程重构_TODO.md`** — 阶段 Task 清单、Done 标准、已完成记录
+5. **`docs/planning/改进点池.md`** — 新想法集散地、分类标签、已拒绝/搁置决策
 
+> 文档库结构见 [`docs/design/架构总览.md`](docs/design/架构总览.md) 末尾「文档地图」；`docs/phases/01·02` 为**冻结的历史归档**，其中对旧文档名/章节的引用是当时的记录，勿据此对接现状。
 > auto-memory 索引（不放项目内）：`~/.claude/projects/-home-houtas-StudioProjects-FormulaMaster/memory/MEMORY.md`，
 > 含 `HANDOFF_TO_NEXT_SESSION.md`（对话模式约定 + 踩坑清单累积）和 `project_progress.md`（开发进度快照）。
 
 读完这几个文件，你就知道：
-- 当前该做什么（03 阶段 Sprint 1 Task 列表）
+- 当前该做什么（Sprint 3 已完成，下一步 Sprint 4）
 - 用户冒出新想法时往哪里写（改进点池"待评估"分区，**不打断当前 Sprint**）
 - 用户说"开新 Sprint"时怎么规划（扫改进点池 → 按 `(优先级 ASC, 时间 ASC)` 排序 → 取 TOP 4-8 询问确认）
 - 哪些决策已经做过（L2 自训练 / LaTeX 输入法 / Test 移出 NavBar 都已搁置或拒绝）

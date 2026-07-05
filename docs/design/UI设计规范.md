@@ -1,5 +1,14 @@
 ### 🎨 Material 3 原生 UI 设计增强规范
 
+> **本文档反映现状**（学习流程重构阶段）。下列 M3 原则持续有效；页面清单见 §6。
+>
+> **当前页面 / 组件清单**（对接现状用）：
+> - **四 Tab**：记忆 `MemoryScreen`（含错题本 FAB + leech 红卡）/ 复习 `RouterReviewScreen` / 测试 `TestScreen` / 设置 `SettingsScreen`
+> - **学习**：`FormulaDetailScreen`（信息展示 + leech 横幅）→ `FormulaLearnRitualScreen`（七步编码仪式）
+> - **复习卡面板**（`RouterReviewScreen` 内）：C1RecognitionPane / C2ClozePane / C3PreconditionPane / C4DerivationPane / C6TypicalProblemPane / 通用 ShowCardPane；卡顶 `CardHeaderChips`（卡型 + 强标记 + 加强卡回考 + **🔥 顽固**）
+> - **错题本**：`ErrorBookScreen`（列表 ↔ 新增表单，全 chip / 数字键盘 / 公式多选池）
+> - **复用组件**：`MathFormulaView`（KaTeX/WebView）/ `LatexChipsView`（KaTeX 选项 chip）/ `TracingCanvas`（临摹默写）
+
 #### 0. UI 架构模式约束 (MVVM + UDF)
 - 严格遵循 MVVM + UDF (单向数据流) 架构。
 - 严禁在 Composable 函数中直接进行数据库读写操作。所有 UI 状态必须封装在 `UiState` 数据类中，通过 ViewModel 的 `StateFlow` 暴露给 Compose，事件通过回调函数 (Lambda) 向上传递给 ViewModel 处理。
@@ -51,4 +60,7 @@ Compose 已经为你铺好了路。在 `ui/theme/Theme.kt` 中，你可以通过
 - **智能草稿交互 (Smart Canvas)**：在提供 `Canvas` 默写区域的界面，必须包含两个核心交互：
   1. 界面右上角提供 `[撤销上一笔]` 和 `[清空画布]` 的悬浮 `IconButton`。
   2. 停笔后自动调用识别接口，并在 Canvas 顶部弹出 Top-3 候选 LaTeX 公式碎块的 UI 容器，用户点击碎块即可完成拼图填空。
-- **顽固节点视觉 (Leeches)**：针对 `lapses >= 4` 的公式，其卡片背景需使用 `MaterialTheme.colorScheme.errorContainer` 予以高亮警告。
+- **顽固节点视觉 (Leeches)**：leech 判定统一走 `domain/LeechDetector`（`lapses ≥ 4` **或** 近 7 日被错题反向标记 ≥ 2 次），**全 App 一致**——记忆卡背景用 `errorContainer` 红底、详情页 leech 横幅、复习卡顶「🔥 顽固」chip、测试答错加强震动。⚠️ 勿再在 UI 内联写 `lapses >= 4` 魔数，一律调 `LeechDetector`。
+
+#### 6. 页面清单
+见本文档顶部「当前页面 / 组件清单」。新增页面时保持 M3 语义化组件 + 大圆角 `ElevatedCard` + `FilledTonalButton` 高频操作 + 页面过渡 `slideInHorizontally`/`slideOutHorizontally` 的一致性。

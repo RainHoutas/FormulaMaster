@@ -2,17 +2,17 @@
 name: Formula Master — 学习流程重构阶段 TODO
 description: 基于研究报告与 RFC 的多卡型矩阵 + Scene 三态架构 + 公式族图谱 + 阶段切换
 created: 2026-05-08
-parentPhase: 02_打磨完善阶段（已收尾，见 `docs/打磨阶段总结.md`）
+parentPhase: 02_打磨完善阶段（已收尾，见 `docs/phases/summaries/打磨阶段总结.md`）
 status: Sprint 1 启动条件已满足，待用户开工指令
 related:
-  - docs/RFC_学习流程重构.md
-  - docs/考研数学公式学习—复习—考试全流程设计研究报告.md
+  - docs/planning/RFC_学习流程重构.md
+  - docs/research/全流程设计研究报告.md
 ---
 
 # 学习流程重构阶段
 
 > 本阶段把 Formula Master 从「原型 + 打磨」过渡到「基于认知科学与产品差异化创新的多维记忆引擎」。
-> 全部决策依据见 [`../RFC_学习流程重构.md`](../RFC_学习流程重构.md)。
+> 全部决策依据见 [`../RFC_学习流程重构.md`](../planning/RFC_学习流程重构.md)。
 
 > **Sprint 编号约定**：每阶段从 Sprint 1 开始（与原型阶段、打磨阶段一致）。
 
@@ -34,7 +34,7 @@ related:
 - 沿用打磨阶段的方法论：诊断驱动 / 不替用户做决策 / 涉及外部 API 必先 WebFetch
 - 内容工程作为独立 Track，不阻塞代码 Sprint
 - 单 Sprint Task 数 ≤ 8；每个 Task 完成后跑 `./gradlew.bat compileDebugKotlin testDebugUnitTest`
-- 新想法默认不打断当前 Sprint（追加到 [`改进点池.md`](../改进点池.md)），仅 P0 例外
+- 新想法默认不打断当前 Sprint（追加到 [`改进点池.md`](../planning/改进点池.md)），仅 P0 例外
 
 ## 架构铁律
 
@@ -327,7 +327,7 @@ related:
   - [x] 七步学习仪式真机闭环验收 —— Bayes 公式：未激活 → 走完七步 → 3 张 mini-card（识别/填空/条件先行）全过 → 结业。**DB 铁证**：6 张子卡 c1-c6 全部 `S=1.000`、`nextReviewTime=2026-06-05 08:00`（次日刷新整点）、`reviews=0/lapses=0`；Memory 同步显示「复习中」
   - [x] Memory Tab 真机三轮回归 —— ① 状态着色：学习中（期望与方差 MIN<1.0）/ 复习中（Bayes 刚结业）/ 已掌握（DB 注入全概率 AVG=35>30）三态 chip 正确；② leech 红条：期望与方差(lapses=4)、分部积分(lapses=8) 整卡 `errorContainer` 红底；③ mastered 拾取：Test Tab 正确显示已掌握的全概率公式（Task 2.6 子卡聚合查询生效）
   - [x] Sprint Mode 真机回归 —— 设考试日期 2026-06-20（距 15 天，冲刺激活）→ 重启触发 `applyIfNeededSubCards`：全概率(S=35>15,mastered) 砍半→**17.5** 且 `nextReviewTime` 重置≈now；Bayes(S=1<15,非mastered) 不变。验毕已还原考试日期默认值
-  - 🐛 **真机使用发现并当场修复（P0）**：七步仪式 Step 6 + Step 7 两张填空卡只显示孤问号 `\fbox{?}`，缺公式骨架（Step 7 选项还是裸 LaTeX）。两卡改为复用 `ClozeSkeletonBuilder`（公式带洞骨架+实时填入）+ `LatexChipsView`（KaTeX 选项），与路由器正式 C2 卡对齐；真机验过（正态分布密度函数）。详见 [改进点池](../改进点池.md)「已完成」
+  - 🐛 **真机使用发现并当场修复（P0）**：七步仪式 Step 6 + Step 7 两张填空卡只显示孤问号 `\fbox{?}`，缺公式骨架（Step 7 选项还是裸 LaTeX）。两卡改为复用 `ClozeSkeletonBuilder`（公式带洞骨架+实时填入）+ `LatexChipsView`（KaTeX 选项），与路由器正式 C2 卡对齐；真机验过（正态分布密度函数）。详见 [改进点池](../planning/改进点池.md)「已完成」
 
 ---
 
@@ -505,4 +505,4 @@ related:
 
 ## 阶段验收标准（全部 Sprint 完成后）
 
-详见 [`RFC_学习流程重构.md`](../RFC_学习流程重构.md) §10。
+详见 [`RFC_学习流程重构.md`](../planning/RFC_学习流程重构.md) §10。
