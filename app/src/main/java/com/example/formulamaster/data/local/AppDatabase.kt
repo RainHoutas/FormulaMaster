@@ -5,23 +5,27 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.formulamaster.data.local.dao.BlockedFormulaDao
+import com.example.formulamaster.data.local.dao.EntryRelationDao
+import com.example.formulamaster.data.local.dao.EntryTagDao
 import com.example.formulamaster.data.local.dao.ErrorReportDao
 import com.example.formulamaster.data.local.dao.FormulaDao
-import com.example.formulamaster.data.local.dao.FormulaSubjectMapDao
 import com.example.formulamaster.data.local.dao.OcrFeedbackDao
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.ReviewSessionProgressDao
 import com.example.formulamaster.data.local.dao.StudyStateDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
+import com.example.formulamaster.data.local.dao.TagDao
 import com.example.formulamaster.data.local.entity.BlockedFormulaEntity
+import com.example.formulamaster.data.local.entity.EntryRelationEntity
+import com.example.formulamaster.data.local.entity.EntryTagCrossRef
 import com.example.formulamaster.data.local.entity.ErrorReportEntity
 import com.example.formulamaster.data.local.entity.FormulaEntity
-import com.example.formulamaster.data.local.entity.FormulaSubjectMapEntity
 import com.example.formulamaster.data.local.entity.OcrFeedbackEntity
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
 import com.example.formulamaster.data.local.entity.ReviewSessionProgressEntity
 import com.example.formulamaster.data.local.entity.StudyStateEntity
 import com.example.formulamaster.data.local.entity.SubCardStateEntity
+import com.example.formulamaster.data.local.entity.TagEntity
 
 @Database(
     entities = [
@@ -29,13 +33,16 @@ import com.example.formulamaster.data.local.entity.SubCardStateEntity
         StudyStateEntity::class,
         ReviewLogEntity::class,
         OcrFeedbackEntity::class,
-        FormulaSubjectMapEntity::class,
         SubCardStateEntity::class,
         ErrorReportEntity::class,
         BlockedFormulaEntity::class,
-        ReviewSessionProgressEntity::class
+        ReviewSessionProgressEntity::class,
+        // Sprint 4 Task 4.1 数据层地基标签化（取代 FormulaSubjectMapEntity）
+        TagEntity::class,
+        EntryTagCrossRef::class,
+        EntryRelationEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,11 +51,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun studyStateDao(): StudyStateDao
     abstract fun reviewLogDao(): ReviewLogDao
     abstract fun ocrFeedbackDao(): OcrFeedbackDao
-    abstract fun formulaSubjectMapDao(): FormulaSubjectMapDao
     abstract fun subCardStateDao(): SubCardStateDao
     abstract fun errorReportDao(): ErrorReportDao
     abstract fun blockedFormulaDao(): BlockedFormulaDao
     abstract fun reviewSessionProgressDao(): ReviewSessionProgressDao
+    // Sprint 4 Task 4.1 标签地基
+    abstract fun tagDao(): TagDao
+    abstract fun entryTagDao(): EntryTagDao
+    abstract fun entryRelationDao(): EntryRelationDao
 
     companion object {
         @Volatile
@@ -90,6 +100,11 @@ abstract class AppDatabase : RoomDatabase() {
                     // 学习流程重构 Sprint 3 Task 3.3：v10 → v11 error_reports 加 penaltySnapshotJson 字段
                     //   - 录入错题时快照所选公式各子卡 (S/nextReview/lapses) 原值
                     //   - 删除时选「恢复计划」→ 逐子卡 best-effort 还原（未被真实复习触碰过的才还原）
+                    // 学习流程重构 Sprint 4 Task 4.1：v11 → v12 数据层地基标签化（RFC §9.4 D16）
+                    //   - 新增 tags / entry_tag_map / entry_relations 三表（分类唯一真相源 + 关系边表）
+                    //   - 退休 formula_subject_map：数一二三并入 namespace=exam 标签
+                    //   - FormulaEntity 移除 parents/siblings/confusableWith（迁 entry_relations）
+                    //   - 词典「外壳」愿景地基：加任意新分类维度只需新 namespace，无需改 schema
                     // 打磨阶段仍允许重置数据，用户基础数据由 assets/formulas.json 在首次启动重新预加载，
                     // FSRS 进度量小重新激活成本可接受；避免维护手写 Migration 的工程开销。
                     // 已收集的反馈样本会随升级清空——属预期行为。

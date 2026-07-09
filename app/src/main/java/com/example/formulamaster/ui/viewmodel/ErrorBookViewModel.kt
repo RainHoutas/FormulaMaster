@@ -255,7 +255,7 @@ class ErrorBookViewModel(
                 val db = AppContainer.appDatabase(app)
                 val processor = ErrorReportProcessor(db.errorReportDao(), db.subCardStateDao())
                 return ErrorBookViewModel(
-                    repository = FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
+                    repository = FormulaRepository(app, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao()),
                     subCardStateDao = db.subCardStateDao(),
                     errorReportDao = db.errorReportDao(),
                     appPreference = AppContainer.appPreference(app),

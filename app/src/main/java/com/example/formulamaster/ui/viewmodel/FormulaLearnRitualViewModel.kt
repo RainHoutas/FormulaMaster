@@ -212,7 +212,7 @@ class FormulaLearnRitualViewModel(
                 val app = context.applicationContext
                 val db = AppContainer.appDatabase(app)
                 return FormulaLearnRitualViewModel(
-                    repository = FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
+                    repository = FormulaRepository(app, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao()),
                     subCardStateDao = db.subCardStateDao(),
                     appPreference = AppContainer.appPreference(app)
                 ) as T

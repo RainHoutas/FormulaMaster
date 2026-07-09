@@ -97,7 +97,7 @@ class MemoryViewModel(
                 val app = context.applicationContext
                 val db = AppContainer.appDatabase(app)
                 return MemoryViewModel(
-                    FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
+                    FormulaRepository(app, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao()),
                     db.subCardStateDao(),
                     db.errorReportDao(),
                     AppContainer.appPreference(app)

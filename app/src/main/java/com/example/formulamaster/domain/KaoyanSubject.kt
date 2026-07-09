@@ -6,12 +6,11 @@ package com.example.formulamaster.domain
  * 仅在 [UseScene.KaoyanMath] 下生效,决定用户看到的公式池子集。
  * 数一/数二/数三公式范围不同(数二不考概率,数三高数部分内容也有差异)。
  *
- * 通过 `data/local/entity/FormulaSubjectMapEntity` 多对多关系表过滤公式列表
- * (Sprint 1 Task 1.3 落地)。[code] 字段是落库到 `FormulaSubjectMap.subjectType`
- * 的字符串(短码,便于 SQL JOIN 阅读)。
+ * Sprint 4 Task 4.1 起通过统一标签体系过滤：公式挂 `namespace=exam` 标签，
+ * [code] 即 `tags.value`（"1"/"2"/"3"），经 `entry_tag_map` JOIN 过滤公式列表。
  */
 enum class KaoyanSubject(
-    /** 落库 `FormulaSubjectMap.subjectType` 的短码,与 `formulas.json` 中 `appliesTo` 数组元素对应。 */
+    /** 落库 `tags.value`（namespace=exam）的短码,与 `formulas.json` 中 `appliesTo` 数组元素对应。 */
     val code: String,
     val displayName: String,
     val description: String

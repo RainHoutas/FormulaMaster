@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
  *
  * 验证：
  *  - 30 条公式全部加载到 formulas 表
- *  - formula_subject_map 行数 = Σ appliesTo 长度（21×3 + 5×2 + 4×1 = 77）
+ *  - exam 标签映射行数 = Σ appliesTo 长度（21×3 + 5×2 + 4×1 = 77）
  *  - 数一可见 30 / 数二可见 21 / 数三可见 26
  *  - 每条 clozeData / derivationSteps 都是可解析的 JSON 字符串
  */
@@ -39,7 +39,7 @@ class FormulaSeedIntegrationTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repo = FormulaRepository(context, db.formulaDao(), db.formulaSubjectMapDao())
+        repo = FormulaRepository(context, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao())
     }
 
     @After
@@ -55,9 +55,10 @@ class FormulaSeedIntegrationTest {
     }
 
     @Test
-    fun `formula_subject_map 总行数 = 77（21×3 + 5×2 + 4×1）`() = runTest {
+    fun `exam 标签映射总行数 = 77（21×3 + 5×2 + 4×1）`() = runTest {
         repo.seedIfEmpty()
-        val count = db.formulaSubjectMapDao().count()
+        // Sprint 4：数一二三并入 namespace=exam 标签，行数 = Σ appliesTo 长度
+        val count = db.entryTagDao().countByNamespace("exam")
         assertEquals(21 * 3 + 5 * 2 + 4 * 1, count)
     }
 

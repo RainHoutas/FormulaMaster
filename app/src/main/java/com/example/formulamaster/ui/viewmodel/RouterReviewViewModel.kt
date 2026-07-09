@@ -391,7 +391,7 @@ class RouterReviewViewModel(
                     processor         = processor,
                     subCardDao        = db.subCardStateDao(),
                     errorReportDao    = db.errorReportDao(),
-                    formulaRepository = FormulaRepository(app, db.formulaDao(), db.formulaSubjectMapDao()),
+                    formulaRepository = FormulaRepository(app, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao()),
                     appPreference     = AppContainer.appPreference(app)
                 ) as T
             }

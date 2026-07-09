@@ -36,7 +36,7 @@ class FormulaRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repo = FormulaRepository(context, db.formulaDao(), db.formulaSubjectMapDao())
+        repo = FormulaRepository(context, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao())
     }
 
     @After
@@ -58,15 +58,15 @@ class FormulaRepositoryTest {
     }
 
     @Test
-    fun `seedIfEmpty 二次调用不重复写 map 行`() = runTest {
+    fun `seedIfEmpty 二次调用不重复写 exam 标签映射`() = runTest {
         repo.seedIfEmpty()
-        val firstMapCount = db.formulaSubjectMapDao().count()
+        val firstMapCount = db.entryTagDao().countByNamespace("exam")
         // 21×3 + 5×2 + 4×1 = 77
         assertEquals(77, firstMapCount)
 
         repo.seedIfEmpty()
-        val secondMapCount = db.formulaSubjectMapDao().count()
-        assertEquals("seedIfEmpty 应幂等，二次调用 map 行不变",
+        val secondMapCount = db.entryTagDao().countByNamespace("exam")
+        assertEquals("seedIfEmpty 应幂等，二次调用 exam 标签行不变",
             firstMapCount, secondMapCount)
     }
 

@@ -453,16 +453,43 @@ related:
 
 ---
 
-## Sprint 4：公式族图谱 + 阶段切换 UI（占位）
+## Sprint 4：数据层地基标签化 + 公式族图谱
 
-### Task 占位（D14=B / D15=A 已答 ✅ 2026-05-20）
+### 主题（2026-07-09 用户拍板范围，详 RFC §9.4 D16）
 
-- [ ] Task 4.1 公式族图谱（章节内可选视图）
-- [ ] Task 4.2 `StudyPhase` enum + `AppPreference.studyPhase` 持久化
-- [ ] Task 4.3 阶段切换 UI（仅 KaoyanMath Scene 显示）+ 自动建议 + 用户确认
-- [ ] Task 4.4 阶段切换的 FSRS 联动（retention 调整 / 全交错开关 / Top 20 易遗忘面板）
-- [ ] Task 4.5 多维掌握度评分（Khan 4 级，可选）
-- [ ] Task 4.6 单测 + 真机验收
+开工前数据核查发现图谱数据稀疏（`parents` 9/30 · `confusableWith` 10/30，20/30 无边，漂亮的链多跨章），RFC 原「章节内视图」在现数据下 13/16 章孤点 → 空壳。根因是**关系存成内嵌 JSON 单向边 + subject/chapter 是硬列**。用户借此升级愿景（App 定位为**领域无关记忆「外壳」**，总字典可扩展），拍板**分类层 + 关系层全标签化**（方案乙）。
+
+**纪律**：眼下仍以**考研数学公式记忆核心功能**为准，不偏移愿景；地基只在**通用化 + 原子化**上铺好；数学内容字段（latex/cloze/derivation）原样保留，不做内容通用化。**StudyPhase 阶段切换（原 4.1-4.3）延后 Sprint 5**。
+
+### Task 列表（3 个）
+
+- [x] **Task 4.1 标签/关系地基**（数据层重构，v11→v12）— ✅ **代码完成 + 真机 smoke 过（2026-07-09，未 commit）**
+  - ✅ 新建 `TagEntity`(tags) / `EntryTagCrossRef`(entry_tag_map，带 `isPrimary`) / `EntryRelationEntity`(entry_relations) + 3 DAO；`domain/TagNamespace`（开放式）+ `domain/EntryRelationType`（推导有向/易混·同族无向）
+  - ✅ **路径 2**：`FormulaEntity` 只删 `parents`/`siblings`/`confusableWith`（迁 entry_relations，零消费方）；`subject`/`chapter`/`tags` 保留为显示缓存
+  - ✅ `formulas.json` **不改**——种子加载器直接从现有字段拆原子行写三表（比改 JSON 更省更稳）
+  - ✅ `formula_subject_map` 退休，数一二三并入 `tags`(namespace=exam)；`observeByKaoyanSubject` 改走标签 JOIN
+  - ✅ **验证**：编译过（Room 接受新 schema）；数一二三过滤 30/21/26 不变 + exam 行 77 + 幂等；新增 `TagFoundationSeedTest` 6 例；**全套 364 单测绿**；真机 smoke 过（App 正常/列表有公式/科目过滤对）
+
+- [ ] **Task 4.2 公式族图谱 = 记忆主视图**（详 RFC §9.4 D17）— **设计定稿，待实现**
+  - **图谱升为记忆 Tab 默认主视图，删旧列表**（承载外观+路由+学习状态）
+  - **布局**：母=章节聚类分区（固定空间锚点）+ 子=块内分层（推导纵向），确定性算法·同池唯一
+  - **呈现（语义缩放两级）**：母层=章节气泡地图（大小∝公式数/色=科目/外环=章节掌握度/虚线连跨章）→ 点气泡开合钻入 → 子层=块内分层子图
+  - **交互**：母层拖动+松手吸附最近气泡+当前气泡进度条；子层拖动不吸附；点节点按状态路由（未学→七步/已学→详情）；跨章 `↗N` 角标→列表→跳章吸中心；系统返回/捏合退出；气泡开合动画
+  - **渲染**：Compose Canvas 画边 + Composable 节点 chip（公式简名，**禁每节点 KaTeX**）；节点 3 态（未学灰虚线/学习中/已掌握绿）+ 顽固🔥叠加
+  - **引擎原子化三层**：数据(GraphModel) / 布局(`GraphLayout` 可插拔接口) / 渲染(Canvas+Composable)
+  - 建议子任务：① 布局引擎(纯 Kotlin，聚类+块内分层) ② 渲染层(相机变换下 Canvas 边 + Composable 节点对齐) ③ 母层(拖动/吸附/进度条/气泡) ④ 子层(分层子图/节点状态/跨章角标) ⑤ 手势(拖/点/捏合消歧 + 开合动画) ⑥ 路由接现有学习/详情 ⑦ 删旧列表
+  - **原型**：HTML 交互原型已验证导航模型（概念通过）
+
+- [ ] **Task 4.3 回填 + 图谱校验**
+  - ✅ 地基校验单测已随 4.1 完成（`TagFoundationSeedTest` 6 例：防悬空/主标签唯一/namespace/无向规范化/推导方向）
+  - [ ] 图谱布局引擎纯函数单测（确定性：同输入同坐标 / 聚类分区正确 / 块内分层拓扑）
+  - **Done**：单测全绿；图谱在三科真机可见结构 + 交互闭环
+
+### Sprint 4 留作 Sprint 5 起点的债
+
+- **StudyPhase 阶段切换**（原 4.1-4.3）：`StudyPhase` 五态 enum + 持久化 + 自动建议+确认 UI（仅 KaoyanMath）+ FSRS 联动 + 设置页「重置阶段」后悔药（D15=A）+ `phase_reset` 日志
+- **C5 易混辨析卡**：需先补 `diffExplanation` 内容（D12=B）；地基标签化后 `entry_relations` 的易混边可直接复用
+- Khan 4 级掌握度：RFC §6.2 明确推迟，不排期
 
 ---
 

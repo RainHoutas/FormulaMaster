@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
         // Sprint 2 Task 2.1 修复 D 配套：通过 AppContainer 取数据库单例，
         // 与 ViewModel 工厂共享同一实例
         val db = AppContainer.appDatabase(applicationContext)
-        val repository = FormulaRepository(applicationContext, db.formulaDao(), db.formulaSubjectMapDao())
+        val repository = FormulaRepository(applicationContext, db.formulaDao(), db.tagDao(), db.entryTagDao(), db.entryRelationDao())
         lifecycleScope.launch {
             // 1. 首次启动：预加载公式数据
             repository.seedIfEmpty()

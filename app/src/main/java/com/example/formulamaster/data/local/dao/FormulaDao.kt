@@ -25,17 +25,20 @@ interface FormulaDao {
 
     /**
      * 学习流程重构 Sprint 1 Task 1.3 — 按考研数学子科目过滤公式列表。
+     * Sprint 4 Task 4.1：数据源从 `formula_subject_map` 迁到统一标签体系（namespace=exam）。
      *
-     * JOIN `formula_subject_map`，只返回 `subjectType` 匹配传入 [subjectCode] 的公式。
-     * 传入参数为 [com.example.formulamaster.domain.KaoyanSubject.code]（"1"/"2"/"3"）。
+     * JOIN `entry_tag_map` + `tags`，只返回挂了 `exam:<subjectCode>` 标签的公式。
+     * [subjectCode] 为 [com.example.formulamaster.domain.KaoyanSubject.code]（"1"/"2"/"3"），
+     * 即 `tags.value`（namespace=exam）。
      *
-     * 同一公式可能在 map 表里有多行（数一+数三都考），用 DISTINCT 去重避免 JOIN 笛卡尔放大。
+     * 同一公式可能挂多个 exam 标签（数一+数三都考），用 DISTINCT 去重避免 JOIN 放大。
      */
     @Query(
         """
         SELECT DISTINCT f.* FROM formulas f
-        INNER JOIN formula_subject_map m ON f.formulaId = m.formulaId
-        WHERE m.subjectType = :subjectCode
+        INNER JOIN entry_tag_map m ON f.formulaId = m.entryId
+        INNER JOIN tags t ON m.tagId = t.tagId
+        WHERE t.namespace = 'exam' AND t.value = :subjectCode
         ORDER BY f.subject, f.chapter
         """
     )
