@@ -18,6 +18,7 @@ import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.RecognitionMode
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.SprintModeManager
+import com.example.formulamaster.domain.UseScene
 import com.example.formulamaster.domain.SubCardAggregator
 import com.example.formulamaster.domain.model.FormulaWithState
 import kotlinx.coroutines.flow.SharingStarted
@@ -82,7 +83,8 @@ class TestViewModel(
      * 跟随 [AppPreference.settings] 变化（用户改考试日期立即重算）。
      */
     val isSprintActive: StateFlow<Boolean> = appPreference.settings
-        .map { SprintModeManager.isActive(it.effectiveTargetExamDate) }
+        // Sprint 5 Scene 守卫：冲刺仅考研数学 Scene 生效
+        .map { it.useScene == UseScene.KaoyanMath && SprintModeManager.isActive(it.effectiveTargetExamDate) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

@@ -117,6 +117,35 @@ fun FormulaLearnRitualScreen(
         return
     }
 
+    // Sprint 5：新卡上限 / 阶段关新卡 → 拦截，不进仪式
+    if (uiState.capBlocked) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(40.dp)
+                .wrapContentSize(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)
+        ) {
+            androidx.compose.material3.Text("🎯", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+            androidx.compose.material3.Text(
+                "今日新卡已满",
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+            )
+            androidx.compose.material3.Text(
+                uiState.capMessage,
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            androidx.compose.material3.FilledTonalButton(onClick = onBack) {
+                androidx.compose.material3.Text("返回")
+            }
+        }
+        return
+    }
+
     val formula = uiState.formula!!
     val pagerState = rememberPagerState(pageCount = { 7 })
     val scope = rememberCoroutineScope()

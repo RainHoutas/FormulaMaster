@@ -1,6 +1,7 @@
 package com.example.formulamaster.data.repository
 
 import com.example.formulamaster.data.AppSettings
+import com.example.formulamaster.domain.UseScene
 import com.example.formulamaster.data.local.dao.ReviewLogDao
 import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.local.entity.ReviewLogEntity
@@ -63,14 +64,16 @@ class ReviewEventProcessor(
         val card = subCardDao.get(event.formulaId, event.cardType.code) ?: return
         val now = clock()
 
-        // 1. FSRS 计算
+        // 1. FSRS 计算（Sprint 5：仅 KaoyanMath 下按学习阶段调 retention 间隔；其它 Scene 用基线 1.0）
+        val intervalFactor = if (settings.useScene == UseScene.KaoyanMath) settings.studyPhase.intervalFactor else 1.0
         val result = ReviewScheduler.calculate(
-            current       = card,
-            rating        = event.rating,
-            isTestMode    = false,
-            currentTimeMs = now,
-            hourOfDay     = settings.dailyRefreshHourOfDay,
-            minute        = settings.dailyRefreshMinuteOfHour
+            current        = card,
+            rating         = event.rating,
+            isTestMode     = false,
+            currentTimeMs  = now,
+            hourOfDay      = settings.dailyRefreshHourOfDay,
+            minute         = settings.dailyRefreshMinuteOfHour,
+            intervalFactor = intervalFactor
         )
 
         // 2. 连续好评计数 + 强标记自动清除

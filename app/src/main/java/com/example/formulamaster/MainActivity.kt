@@ -61,13 +61,18 @@ class MainActivity : ComponentActivity() {
             repository.seedIfEmpty()
             // 2. 检查是否进入考前冲刺模式（满足条件才写库）
             //    Sprint 2 Task 2.4：考试日期改读 AppPreference（用户可在设置页修改）
-            val target = try {
-                AppContainer.appPreference(applicationContext).settings.first().effectiveTargetExamDate
+            val appSettings = try {
+                AppContainer.appPreference(applicationContext).settings.first()
             } catch (_: Exception) {
-                com.example.formulamaster.data.AppSettings.defaultTargetExamDate()
+                null
             }
-            // Task 2.6（2026-05-29）：冲刺模式改读子卡（母卡退役）
-            SprintModeManager.applyIfNeededSubCards(db.subCardStateDao(), target)
+            val target = appSettings?.effectiveTargetExamDate
+                ?: com.example.formulamaster.data.AppSettings.defaultTargetExamDate()
+            // Sprint 5 Scene 守卫：冲刺模式仅在考研数学 Scene 生效，避免高考/自学场景误改 study_states
+            if (appSettings?.useScene == com.example.formulamaster.domain.UseScene.KaoyanMath) {
+                // Task 2.6（2026-05-29）：冲刺模式改读子卡（母卡退役）
+                SprintModeManager.applyIfNeededSubCards(db.subCardStateDao(), target)
+            }
         }
 
         // Sprint 2 Task 2.1 后台冷启动预热：把"首次进 Tab 才付钱"的开销前置到 App 启动时

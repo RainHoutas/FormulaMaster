@@ -13,6 +13,7 @@ import com.example.formulamaster.data.repository.FormulaRepository
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.DerivationStepParser
+import com.example.formulamaster.domain.UseScene
 import com.example.formulamaster.domain.ReviewScheduler
 import com.example.formulamaster.domain.model.ClozeItem
 import com.example.formulamaster.domain.model.DerivationStep
@@ -47,6 +48,9 @@ data class FormulaLearnRitualUiState(
     val minimalClozeItem: ClozeItem? = null,
     val isLoading: Boolean = true,
     val isCompleted: Boolean = false,
+    /** Sprint 5：今日新卡达上限 / 当前阶段关新卡 → 拦截学习入口。 */
+    val capBlocked: Boolean = false,
+    val capMessage: String = "",
     val step7: Step7State = Step7State()
 )
 
@@ -100,6 +104,7 @@ class FormulaLearnRitualViewModel(
             val derivationSteps = DerivationStepParser.parse(formula.derivationSteps)
             val clozeItems = ClozeParser.parse(formula.clozeData)
             val minimalClozeItem = ClozeParser.minimalSample(clozeItems, preconditions)
+            val (blocked, message) = newCardGate(appPreference.settings.value)
 
             _uiState.update {
                 it.copy(
@@ -109,10 +114,27 @@ class FormulaLearnRitualViewModel(
                     derivationSteps = derivationSteps,
                     clozeItems = clozeItems,
                     minimalClozeItem = minimalClozeItem,
-                    isLoading = false
+                    isLoading = false,
+                    capBlocked = blocked,
+                    capMessage = message
                 )
             }
         }
+    }
+
+    /**
+     * Sprint 5 新卡上限 gate：仅考研数学 Scene 生效。当前阶段关新卡 或 今日已达上限 → 拦截。
+     */
+    private fun newCardGate(settings: com.example.formulamaster.data.AppSettings): Pair<Boolean, String> {
+        if (settings.useScene != UseScene.KaoyanMath) return false to ""
+        val phase = settings.studyPhase
+        if (phase.newCardsClosed) return true to "当前「${phase.displayName}」阶段专注复习巩固，不学新公式。"
+        val todayKey = ReviewScheduler.truncateToRefreshHour(
+            System.currentTimeMillis(), settings.dailyRefreshHourOfDay, settings.dailyRefreshMinuteOfHour
+        )
+        return if (settings.newCardsUsedOn(todayKey) >= phase.newCardsPerDay)
+            true to "今日新公式已达上限（${phase.newCardsPerDay} 个），先复习巩固已学的吧。"
+        else false to ""
     }
 
     // ── 第 7 步 mini-card 推进 ─────────────────────────────────────────────────
@@ -198,6 +220,14 @@ class FormulaLearnRitualViewModel(
             })
 
             // Task 2.6（2026-05-29）：母卡 study_states 已退役，结业仅初始化 6 子卡，不再双写。
+
+            // Sprint 5：仅考研数学 Scene 记一次新公式激活（新卡上限计数，跨日自动重置）
+            if (settings.useScene == UseScene.KaoyanMath) {
+                val todayKey = ReviewScheduler.truncateToRefreshHour(
+                    nowMs, settings.dailyRefreshHourOfDay, settings.dailyRefreshMinuteOfHour
+                )
+                appPreference.recordNewActivation(todayKey)
+            }
 
             _uiState.update { it.copy(isCompleted = true) }
         }

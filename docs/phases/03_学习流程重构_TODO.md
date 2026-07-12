@@ -494,9 +494,25 @@ related:
 
 ### Sprint 4 留作 Sprint 5 起点的债
 
-- **StudyPhase 阶段切换**（原 4.1-4.3）：`StudyPhase` 五态 enum + 持久化 + 自动建议+确认 UI（仅 KaoyanMath）+ FSRS 联动 + 设置页「重置阶段」后悔药（D15=A）+ `phase_reset` 日志
+- ~~**StudyPhase 阶段切换**~~ → ✅ **Sprint 5 完成**（见下）
 - **C5 易混辨析卡**：需先补 `diffExplanation` 内容（D12=B）；地基标签化后 `entry_relations` 的易混边可直接复用
 - Khan 4 级掌握度：RFC §6.2 明确推迟，不排期
+
+---
+
+## Sprint 5：StudyPhase 学习阶段切换 ✅（2026-07-09 完成，未 commit）
+
+**决策（②a 自动建议按距考天数 / ①a 入口在设置页 / ③b 交错策略全做）**：一气做完，不拆增量（用户反馈：相关开发一次做完整）。参数依研究报告 §3.2·§7.2。
+
+- ✅ `domain/StudyPhase.kt`：五态 enum（一/二/三轮/冲刺/保持）+ 每阶段配置（新卡上限 / intervalFactor=ln(R)/ln(0.9) / 交错策略）+ `suggestedFor(daysToExam)` 自动建议；`Interleave` 枚举（BLOCK/WITHIN_CHAPTER/FULL）
+- ✅ `AppPreference`：`studyPhase` 持久化 + 每日新卡计数（`newCardDayKey`/`newCardCount` + `recordNewActivation` 跨日重置 + `newCardsUsedOn`）
+- ✅ **FSRS retention 联动**：`ReviewScheduler.computeFsrs/calculate` 加 `intervalFactor`（缩放复习间隔）；`ReviewEventProcessor` 按阶段传入（Scene 守卫）
+- ✅ **交错策略**：`domain/SessionInterleaver.kt` 纯函数（章内 block / 章内交错 / 全交错 round-robin，确定性）；`RouterReviewViewModel.buildSessionInputs` 按阶段重排公式顺序
+- ✅ **新卡上限 gate**：七步仪式结业 `recordNewActivation`；`FormulaLearnRitualViewModel.load` 按阶段+今日计数拦截（关新卡阶段 / 达上限 → `capBlocked` 提示不进仪式）
+- ✅ **设置页 UI**（学习计划区）：当前阶段 + 描述 + 距考天数自动建议进阶按钮 + 「重置学习阶段」对话框（D15=A 后悔药，列全阶段可选）
+- ✅ **Scene 守卫**（改进点池 P2）：SprintMode 行为点（MainActivity 批处理 / TestVM isSprintActive）+ 新阶段联动全部加 `useScene==KaoyanMath` 守卫
+- ✅ 单测 +16（`StudyPhaseTest` 8 / `SessionInterleaverTest` 6 / `ReviewSchedulerIntervalFactorTest` 2）；**全套 399 绿**
+- ⏳ **真机验收待做**：设置页切阶段 / 建议进阶 / 重置；新卡上限拦截；复习间隔与交错随阶段变化
 
 ---
 

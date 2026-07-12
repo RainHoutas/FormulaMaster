@@ -16,6 +16,9 @@ import com.example.formulamaster.data.repository.ReviewEventProcessor
 import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.Interleave
+import com.example.formulamaster.domain.SessionInterleaver
+import com.example.formulamaster.domain.UseScene
 import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.LeechDetector
 import com.example.formulamaster.domain.ClozeParser
@@ -220,13 +223,17 @@ class RouterReviewViewModel(
             .mapNotNull { fid -> formulaRepository.getById(fid)?.let { fid to it.examWeight } }
             .toMap()
 
-        val formulasInOrder = formulaIds.sortedWith(
+        val prioritized = formulaIds.sortedWith(
             compareByDescending<String> { fid ->
                 grouped[fid].orEmpty().any { it.isReinforced }
             }
                 .thenByDescending { examWeights[it] ?: 0 }
                 .thenBy { it }
         )
+
+        // Sprint 5：按学习阶段交错策略重排公式顺序（仅 KaoyanMath；其它 Scene 用全交错基线）
+        val interleave = if (settings.useScene == UseScene.KaoyanMath) settings.studyPhase.interleave else Interleave.FULL
+        val formulasInOrder = SessionInterleaver.interleave(prioritized, chapterOf, interleave)
 
         return formulasInOrder to dueCardsByFormula
     }

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.KaoyanSubject
+import com.example.formulamaster.domain.StudyPhase
 import com.example.formulamaster.domain.UseScene
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +49,16 @@ data class AppSettings(
     /** 学习流程重构 Sprint 1 Task 1.1 — 考研数学子科目;仅当 [useScene] = [UseScene.KaoyanMath] 时生效。 */
     val kaoyanSubject: KaoyanSubject = KaoyanSubject.Default,
     /** 学习流程重构 Sprint 3 Task 3.3 — 删除错题时对复习计划的处理策略。 */
-    val errorDeletePolicy: ErrorDeletePolicy = ErrorDeletePolicy.Default
+    val errorDeletePolicy: ErrorDeletePolicy = ErrorDeletePolicy.Default,
+    /** Sprint 5 — 学习阶段（一/二/三轮/冲刺/保持）；仅当 [useScene] = [UseScene.KaoyanMath] 时生效。 */
+    val studyPhase: StudyPhase = StudyPhase.Default,
+    /** Sprint 5 — 今日新卡计数的"日锚"（每日刷新整点 ms）；与 [newCardCount] 配合做新卡上限。 */
+    val newCardDayKey: Long = 0L,
+    /** Sprint 5 — [newCardDayKey] 当日已激活的新公式数。跨日由 [recordNewActivation] 重置。 */
+    val newCardCount: Int = 0
 ) {
+    /** 给定"今日日锚"，返回今日已激活新卡数（日锚不匹配视为 0，即已跨日）。 */
+    fun newCardsUsedOn(todayKey: Long): Int = if (newCardDayKey == todayKey) newCardCount else 0
     /** 实际生效的考试日期：用户已设过则用持久化值，否则取动态默认（当前年份 12-20）。 */
     val effectiveTargetExamDate: Long
         get() = if (targetExamDate > 0L) targetExamDate else defaultTargetExamDate()
@@ -117,7 +126,10 @@ class AppPreference(
                 inputMode = prefs[KEY_INPUT_MODE]?.toInputModeOrDefault() ?: InputMode.Default,
                 useScene = prefs[KEY_USE_SCENE]?.toUseSceneOrDefault() ?: UseScene.Default,
                 kaoyanSubject = KaoyanSubject.fromName(prefs[KEY_KAOYAN_SUBJECT]),
-                errorDeletePolicy = ErrorDeletePolicy.fromName(prefs[KEY_ERROR_DELETE_POLICY])
+                errorDeletePolicy = ErrorDeletePolicy.fromName(prefs[KEY_ERROR_DELETE_POLICY]),
+                studyPhase = StudyPhase.fromName(prefs[KEY_STUDY_PHASE]),
+                newCardDayKey = prefs[KEY_NEWCARD_DAY] ?: 0L,
+                newCardCount = prefs[KEY_NEWCARD_COUNT] ?: 0
             )
         }
         .onEach { _isLoaded.value = true }
@@ -169,6 +181,23 @@ class AppPreference(
         dataStore.edit { it[KEY_ERROR_DELETE_POLICY] = policy.name }
     }
 
+    /** Sprint 5：写入学习阶段（一/二/三轮/冲刺/保持）。 */
+    suspend fun setStudyPhase(phase: StudyPhase) {
+        dataStore.edit { it[KEY_STUDY_PHASE] = phase.name }
+    }
+
+    /** Sprint 5：记一次新公式激活（七步仪式结业）。跨日（[todayKey] 变化）自动重置计数。 */
+    suspend fun recordNewActivation(todayKey: Long) {
+        dataStore.edit {
+            if ((it[KEY_NEWCARD_DAY] ?: 0L) != todayKey) {
+                it[KEY_NEWCARD_DAY] = todayKey
+                it[KEY_NEWCARD_COUNT] = 1
+            } else {
+                it[KEY_NEWCARD_COUNT] = (it[KEY_NEWCARD_COUNT] ?: 0) + 1
+            }
+        }
+    }
+
     /** 解析 DataStore 存储的字符串到枚举；未知值（旧版本字段被删/改名）按默认处理。 */
     private fun String.toInputModeOrDefault(): InputMode = try {
         InputMode.valueOf(this)
@@ -192,6 +221,9 @@ class AppPreference(
         private val KEY_USE_SCENE                 = stringPreferencesKey("use_scene")
         private val KEY_KAOYAN_SUBJECT            = stringPreferencesKey("kaoyan_subject")
         private val KEY_ERROR_DELETE_POLICY       = stringPreferencesKey("error_delete_policy")
+        private val KEY_STUDY_PHASE               = stringPreferencesKey("study_phase")
+        private val KEY_NEWCARD_DAY               = longPreferencesKey("newcard_day_key")
+        private val KEY_NEWCARD_COUNT             = intPreferencesKey("newcard_count")
 
         private val Context.appDataStore: DataStore<Preferences>
             by preferencesDataStore(name = DATASTORE_NAME)

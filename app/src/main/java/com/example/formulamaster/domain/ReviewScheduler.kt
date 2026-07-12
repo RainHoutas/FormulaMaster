@@ -64,7 +64,8 @@ object ReviewScheduler {
         currentTimeMs: Long,
         hourOfDay: Int,
         minute: Int,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        intervalFactor: Double = 1.0
     ): FsrsCore {
         require(rating in 1..4) { "rating 必须在 1..4，实际值：$rating" }
 
@@ -87,7 +88,8 @@ object ReviewScheduler {
         val newLapses = if (rating == 1) currentLapses + 1 else currentLapses
 
         // ── 5. 下次复习时间（截断到当日刷新整点，永不早于 currentTimeMs）──────────
-        val rawNextReviewTime = currentTimeMs + (sNew * DAY_MS).toLong()
+        //    Sprint 5：intervalFactor = 学习阶段 retention 缩放（<1 复习更勤 / >1 更疏）
+        val rawNextReviewTime = currentTimeMs + (sNew * intervalFactor * DAY_MS).toLong()
         val nextReviewTime = adjustToRefreshHour(rawNextReviewTime, currentTimeMs, hourOfDay, minute, zoneId)
 
         return FsrsCore(dNew, sNew, nextReviewTime, newLapses)
@@ -176,7 +178,8 @@ object ReviewScheduler {
         currentTimeMs: Long = System.currentTimeMillis(),
         hourOfDay: Int = 8,
         minute: Int = 0,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        intervalFactor: Double = 1.0                         // Sprint 5：学习阶段 retention 缩放
     ): SubCardSchedulerResult {
         val core = computeFsrs(
             currentStability  = current.stability,
@@ -187,7 +190,8 @@ object ReviewScheduler {
             currentTimeMs     = currentTimeMs,
             hourOfDay         = hourOfDay,
             minute            = minute,
-            zoneId            = zoneId
+            zoneId            = zoneId,
+            intervalFactor    = intervalFactor
         )
         return SubCardSchedulerResult(
             newDifficulty  = core.newDifficulty,

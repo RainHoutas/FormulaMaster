@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +65,7 @@ import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.SprintModeManager
+import com.example.formulamaster.domain.UseScene
 import java.time.Instant
 import java.time.LocalDate
 import com.example.formulamaster.domain.RecognizerSettings
@@ -237,6 +239,16 @@ fun SettingsScreen(
                 onDateChange = viewModel::setTargetExamDate,
                 onReset = viewModel::resetTargetExamDate
             )
+
+            // Sprint 5：学习阶段（仅考研数学 Scene）
+            if (appSettings.useScene == UseScene.KaoyanMath) {
+                Spacer(Modifier.height(12.dp))
+                StudyPhaseSection(
+                    current = appSettings.studyPhase,
+                    examDateMs = appSettings.effectiveTargetExamDate,
+                    onSetPhase = viewModel::setStudyPhase
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
             HorizontalDivider()
@@ -1121,5 +1133,87 @@ private fun ExamDateSection(
 private fun SectionHeader(text: String) {
     Box(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+// ── 学习阶段（Sprint 5）─────────────────────────────────────────────────────
+
+@Composable
+private fun StudyPhaseSection(
+    current: com.example.formulamaster.domain.StudyPhase,
+    examDateMs: Long,
+    onSetPhase: (com.example.formulamaster.domain.StudyPhase) -> Unit
+) {
+    val daysToExam = (examDateMs - System.currentTimeMillis()) / 86_400_000L
+    val suggested = com.example.formulamaster.domain.StudyPhase.suggestedFor(daysToExam)
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("学习阶段", style = MaterialTheme.typography.titleSmall)
+
+            // 距考天数建议（②a 自动建议）
+            if (suggested != null) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "距考 $daysToExam 天，建议「${suggested.displayName}」",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (suggested != current) {
+                            TextButton(onClick = { onSetPhase(suggested) }) { Text("采纳") }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            // 五阶段直接可选（设置=配置面，自由切换；主 App 内默认单向推进）
+            com.example.formulamaster.domain.StudyPhase.entries.forEach { p ->
+                val selected = p == current
+                Surface(
+                    onClick = { onSetPhase(p) },
+                    color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                    else androidx.compose.ui.graphics.Color.Transparent,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                ) {
+                    Row(
+                        Modifier.padding(end = 10.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = selected,
+                            onClick = { onSetPhase(p) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                p.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold
+                                else androidx.compose.ui.text.font.FontWeight.Normal
+                            )
+                            Text(
+                                p.description,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

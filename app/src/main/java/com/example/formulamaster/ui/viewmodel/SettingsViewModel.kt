@@ -14,6 +14,7 @@ import com.example.formulamaster.data.local.dao.SubCardStateDao
 import com.example.formulamaster.data.worker.DailyReminderWorker
 import com.example.formulamaster.domain.ErrorDeletePolicy
 import com.example.formulamaster.domain.InputMode
+import com.example.formulamaster.domain.StudyPhase
 import com.example.formulamaster.domain.RecognizerErrorClassifier
 import com.example.formulamaster.domain.RecognizerRegistry
 import com.example.formulamaster.domain.RecognizerSettings
@@ -86,6 +87,15 @@ class SettingsViewModel(
     /** Sprint 3 Task 3.3：设置删除错题时对复习计划的处理策略。 */
     fun setErrorDeletePolicy(policy: ErrorDeletePolicy) {
         viewModelScope.launch { appPreference.setErrorDeletePolicy(policy) }
+    }
+
+    /**
+     * Sprint 5：设置学习阶段。前进（自动建议进阶）与重置（后悔药回退到早期阶段）共用此入口；
+     * 主 UI 只提供前进，回退仅在设置页「重置学习阶段」暴露（D15=A 严格单向 + 后悔药）。
+     * retention 缩放只对**后续**复习生效（各卡下次复习时重算），不做批量重排，符合 FSRS 语义。
+     */
+    fun setStudyPhase(phase: StudyPhase) {
+        viewModelScope.launch { appPreference.setStudyPhase(phase) }
     }
 
     fun setDailyRefreshTime(hour: Int, minute: Int) {
