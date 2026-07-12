@@ -172,7 +172,8 @@ fun MainScreen(navTarget: String? = null) {
         ) {
             // ── Tab 主页面 ────────────────────────────────────────────────────
             composable(AppRoute.Memory.route) {
-                MemoryScreen(
+                // Sprint 4 Task 4.2：记忆 Tab 主视图 = 公式族图谱（旧列表 MemoryScreen 已删；MemoryViewModel 保留供 FormulaDetail 用）
+                GraphScreen(
                     onFormulaClick = { formulaId, isActivated ->
                         // 未激活公式直接进七步学习仪式；
                         // 已激活公式进信息展示页（FormulaDetail）方便查阅

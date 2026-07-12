@@ -470,7 +470,14 @@ related:
   - ✅ `formula_subject_map` 退休，数一二三并入 `tags`(namespace=exam)；`observeByKaoyanSubject` 改走标签 JOIN
   - ✅ **验证**：编译过（Room 接受新 schema）；数一二三过滤 30/21/26 不变 + exam 行 77 + 幂等；新增 `TagFoundationSeedTest` 6 例；**全套 364 单测绿**；真机 smoke 过（App 正常/列表有公式/科目过滤对）
 
-- [ ] **Task 4.2 公式族图谱 = 记忆主视图**（详 RFC §9.4 D17）— **设计定稿，待实现**
+- [x] **Task 4.2 公式族图谱 = 记忆主视图**（详 RFC §9.4 D17）— ✅ **代码完成 + 真机验证（2026-07-09，未 commit）**
+  - ✅ 原子化三层引擎：`domain/graph/`（数据层 GraphModel/Builder + 布局层 ClusterOverviewLayout 母/WithinChapterLayout 子，纯函数确定性）+ 渲染层 `GraphScreen`（Compose Canvas 边 + Composable 节点，相机变换对齐）+ `GraphViewModel`（复用 MemoryVM combine + 读 entry_relations）
+  - ✅ 母层：章节气泡地图（大小∝公式数/科目色/掌握度环/跨章虚线）+ 拖动 + 松手吸附最近气泡 + 顶部进度条；点气泡缓动居中 + 钻入
+  - ✅ 子层：块内分层子图 + 节点状态色（未学/学习中/已掌握✓/顽固🔥）+ 块内三色边 + 内缩圆角学科色边框 + 浮动圆形返回 + 居中标题胶囊（含进度）
+  - ✅ 交互：气泡开合动画（进从点击位放大/返回朝中心缩）+ 点公式按状态路由（未学→七步/已学→详情）+ 跨章 `↗N` 角标→列表→跳章居中目标公式+脉冲 + `rememberSaveable` 位置持久化（跳学习页返回不丢）
+  - ✅ 删旧列表 `MemoryScreen`（图谱作主视图；MemoryViewModel 保留供 FormulaDetail）；MainScreen 记忆 Tab → GraphScreen
+  - ✅ M3 合规：查官方文档 → chrome 用 `FilledTonalIconButton`/`surfaceContainerHigh`/tonal 层级；M3 组件清单沉淀进 `docs/design/UI设计规范.md §3.1`
+  - ✅ 真机逐步验证（截图）：母层渲染/进度条/开合/子层/状态色/跨章角标→列表→跳转全链路走通
   - **图谱升为记忆 Tab 默认主视图，删旧列表**（承载外观+路由+学习状态）
   - **布局**：母=章节聚类分区（固定空间锚点）+ 子=块内分层（推导纵向），确定性算法·同池唯一
   - **呈现（语义缩放两级）**：母层=章节气泡地图（大小∝公式数/色=科目/外环=章节掌握度/虚线连跨章）→ 点气泡开合钻入 → 子层=块内分层子图
@@ -480,10 +487,10 @@ related:
   - 建议子任务：① 布局引擎(纯 Kotlin，聚类+块内分层) ② 渲染层(相机变换下 Canvas 边 + Composable 节点对齐) ③ 母层(拖动/吸附/进度条/气泡) ④ 子层(分层子图/节点状态/跨章角标) ⑤ 手势(拖/点/捏合消歧 + 开合动画) ⑥ 路由接现有学习/详情 ⑦ 删旧列表
   - **原型**：HTML 交互原型已验证导航模型（概念通过）
 
-- [ ] **Task 4.3 回填 + 图谱校验**
-  - ✅ 地基校验单测已随 4.1 完成（`TagFoundationSeedTest` 6 例：防悬空/主标签唯一/namespace/无向规范化/推导方向）
-  - [ ] 图谱布局引擎纯函数单测（确定性：同输入同坐标 / 聚类分区正确 / 块内分层拓扑）
-  - **Done**：单测全绿；图谱在三科真机可见结构 + 交互闭环
+- [x] **Task 4.3 回填 + 图谱校验** — ✅ 完成（2026-07-09）
+  - ✅ 地基校验单测随 4.1 完成（`TagFoundationSeedTest` 6 例）
+  - ✅ 图谱布局引擎纯函数单测（`ClusterOverviewLayoutTest` 7 + `WithinChapterLayoutTest` 7 + `GraphModelBuilderTest` 5 = 19 例：确定性/学科分带/块内分层拓扑/跨章邻居/状态映射）
+  - ✅ **全套 383 单测绿**；图谱三科真机可见结构 + 交互闭环
 
 ### Sprint 4 留作 Sprint 5 起点的债
 
