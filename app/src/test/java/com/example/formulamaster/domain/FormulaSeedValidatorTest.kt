@@ -74,6 +74,34 @@ class FormulaSeedValidatorTest {
         assertTrue(e.any { it.contains("重复 formulaId") })
     }
 
+    @Test
+    fun `cloze 缺 index 报错`() {
+        val e = FormulaSeedValidator.validate(listOf(good().copy(
+            clozeData = "[{\"placeholder\":\"\\\\sin x\",\"options\":[\"\\\\sin x\",\"\\\\cos x\"]}]")))
+        assertTrue(e.any { it.contains("clozeData[0]") && it.contains("index") })
+    }
+
+    @Test
+    fun `cloze options 为空报错`() {
+        val e = FormulaSeedValidator.validate(listOf(good().copy(
+            clozeData = "[{\"index\":1,\"placeholder\":\"x\",\"options\":[]}]")))
+        assertTrue(e.any { it.contains("clozeData[0]") && it.contains("options") })
+    }
+
+    @Test
+    fun `cloze 合法元素不报错`() {
+        val e = FormulaSeedValidator.validate(listOf(good().copy(
+            clozeData = "[{\"index\":1,\"placeholder\":\"x\",\"options\":[\"x\",\"y\"],\"weight\":5}]")))
+        assertTrue(e.none { it.contains("clozeData") })
+    }
+
+    @Test
+    fun `derivation 元素非对象报错`() {
+        val e = FormulaSeedValidator.validate(listOf(good().copy(
+            derivationSteps = "[\"旧格式纯字符串\"]")))
+        assertTrue(e.any { it.contains("derivationSteps[0]") })
+    }
+
     // ── 真实 assets/formulas.json 全量体检 ────────────────────────────────────
     @Test
     fun `真实 formulas_json 结构全部合法`() {

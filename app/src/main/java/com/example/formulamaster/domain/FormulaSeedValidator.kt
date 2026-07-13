@@ -103,8 +103,46 @@ object FormulaSeedValidator {
                         else if (ref !in idSet) errors += "[$tag] $name 悬空引用：$ref"
                     }
                 }
+
+            // clozeData 元素结构：ClozeParser.itemDeserializer 直接 obj.get("index").asInt /
+            // getAsJsonArray("options")，缺字段会 NPE 且不被 parse() 的 JsonSyntaxException catch 兜住
+            // → 运行时崩。此处提前拦截，保证「能过校验＝上线能解析」。
+            validateClozeItems(r.clozeData, tag, errors)
+            // derivationSteps 元素：DerivationStepParser 用宽松 Gson（缺字段回落默认，不崩），
+            // 仅要求每个元素是对象，避免 ["纯字符串"] 旧格式被静默吞成空推导。
+            validateObjectArray("derivationSteps", r.derivationSteps, tag, errors)
         }
         return errors
+    }
+
+    /** clozeData 每个元素须是对象且含 index(数字) / placeholder(非空字符串) / options(非空字符串数组)。 */
+    private fun validateClozeItems(json: String?, tag: String, out: MutableList<String>) {
+        val arr = runCatching { JsonParser.parseString(json).asJsonArray }.getOrNull() ?: return
+        arr.forEachIndexed { i, el ->
+            val where = "clozeData[$i]"
+            if (!el.isJsonObject) { out += "[$tag] $where 不是对象"; return@forEachIndexed }
+            val obj = el.asJsonObject
+            val idx = obj.get("index")
+            if (idx == null || idx.isJsonNull || !idx.isJsonPrimitive || !idx.asJsonPrimitive.isNumber)
+                out += "[$tag] $where 缺 index 或非数字"
+            val ph = obj.get("placeholder")
+            if (ph == null || ph.isJsonNull || !ph.isJsonPrimitive || ph.asString.isBlank())
+                out += "[$tag] $where 缺 placeholder 或为空"
+            val opt = obj.get("options")
+            if (opt == null || !opt.isJsonArray || opt.asJsonArray.size() == 0)
+                out += "[$tag] $where 缺 options 或非空数组"
+            else opt.asJsonArray.forEachIndexed { j, o ->
+                if (!o.isJsonPrimitive) out += "[$tag] $where.options[$j] 非字符串"
+            }
+        }
+    }
+
+    /** 数组每个元素须是 JSON 对象（用于 derivationSteps 等对象数组）。 */
+    private fun validateObjectArray(name: String, json: String?, tag: String, out: MutableList<String>) {
+        val arr = runCatching { JsonParser.parseString(json).asJsonArray }.getOrNull() ?: return
+        arr.forEachIndexed { i, el ->
+            if (!el.isJsonObject) out += "[$tag] $name[$i] 不是对象"
+        }
     }
 
     private fun requireNonBlank(field: String, v: String?, tag: String, out: MutableList<String>) {
