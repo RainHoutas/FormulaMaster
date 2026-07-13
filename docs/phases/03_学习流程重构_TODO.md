@@ -463,14 +463,14 @@ related:
 
 ### Task 列表（3 个）
 
-- [x] **Task 4.1 标签/关系地基**（数据层重构，v11→v12）— ✅ **代码完成 + 真机 smoke 过（2026-07-09，未 commit）**
+- [x] **Task 4.1 标签/关系地基**（数据层重构，v11→v12）— ✅ **完成 + 真机 smoke 过 · 已 commit+push（`072211a`）**
   - ✅ 新建 `TagEntity`(tags) / `EntryTagCrossRef`(entry_tag_map，带 `isPrimary`) / `EntryRelationEntity`(entry_relations) + 3 DAO；`domain/TagNamespace`（开放式）+ `domain/EntryRelationType`（推导有向/易混·同族无向）
   - ✅ **路径 2**：`FormulaEntity` 只删 `parents`/`siblings`/`confusableWith`（迁 entry_relations，零消费方）；`subject`/`chapter`/`tags` 保留为显示缓存
   - ✅ `formulas.json` **不改**——种子加载器直接从现有字段拆原子行写三表（比改 JSON 更省更稳）
   - ✅ `formula_subject_map` 退休，数一二三并入 `tags`(namespace=exam)；`observeByKaoyanSubject` 改走标签 JOIN
   - ✅ **验证**：编译过（Room 接受新 schema）；数一二三过滤 30/21/26 不变 + exam 行 77 + 幂等；新增 `TagFoundationSeedTest` 6 例；**全套 364 单测绿**；真机 smoke 过（App 正常/列表有公式/科目过滤对）
 
-- [x] **Task 4.2 公式族图谱 = 记忆主视图**（详 RFC §9.4 D17）— ✅ **代码完成 + 真机验证（2026-07-09，未 commit）**
+- [x] **Task 4.2 公式族图谱 = 记忆主视图**（详 RFC §9.4 D17）— ✅ **完成 + 真机验证 · 已 commit+push（`f156a21`）**
   - ✅ 原子化三层引擎：`domain/graph/`（数据层 GraphModel/Builder + 布局层 ClusterOverviewLayout 母/WithinChapterLayout 子，纯函数确定性）+ 渲染层 `GraphScreen`（Compose Canvas 边 + Composable 节点，相机变换对齐）+ `GraphViewModel`（复用 MemoryVM combine + 读 entry_relations）
   - ✅ 母层：章节气泡地图（大小∝公式数/科目色/掌握度环/跨章虚线）+ 拖动 + 松手吸附最近气泡 + 顶部进度条；点气泡缓动居中 + 钻入
   - ✅ 子层：块内分层子图 + 节点状态色（未学/学习中/已掌握✓/顽固🔥）+ 块内三色边 + 内缩圆角学科色边框 + 浮动圆形返回 + 居中标题胶囊（含进度）
@@ -505,7 +505,7 @@ related:
 
 ---
 
-## Sprint 5：StudyPhase 学习阶段切换 ✅（2026-07-09 完成，未 commit）
+## Sprint 5：StudyPhase 学习阶段切换 ✅（代码完成 · 已 commit+push `da1287a`；真机验收部分待做，见 Sprint 6 #6）
 
 **决策（②a 自动建议按距考天数 / ①a 入口在设置页 / ③b 交错策略全做）**：一气做完，不拆增量（用户反馈：相关开发一次做完整）。参数依研究报告 §3.2·§7.2。
 
@@ -517,44 +517,94 @@ related:
 - ✅ **设置页 UI**（学习计划区）：当前阶段 + 描述 + 距考天数自动建议进阶按钮 + 「重置学习阶段」对话框（D15=A 后悔药，列全阶段可选）
 - ✅ **Scene 守卫**（改进点池 P2）：SprintMode 行为点（MainActivity 批处理 / TestVM isSprintActive）+ 新阶段联动全部加 `useScene==KaoyanMath` 守卫
 - ✅ 单测 +16（`StudyPhaseTest` 8 / `SessionInterleaverTest` 6 / `ReviewSchedulerIntervalFactorTest` 2）；**全套 399 绿**
-- ⏳ **真机验收待做**：设置页切阶段 / 建议进阶 / 重置；新卡上限拦截；复习间隔与交错随阶段变化
+- ⏳ **真机验收部分待做** → 见 Sprint 6 #6（设置切换已验；新卡上限拦截 / 复习间隔 / 交错 未真机）
+
+---
+
+## Sprint 6：阶段收尾（🔵 进行中，2026-07-13 立项）
+
+> **由来**：2026-07-13 用户复核发现——Sprint 1-5 的**主干**跑通了，但**七步仪式有 2.5 步是占位、C5 整张卡没落地**（当初为推进先占位/延后的债），加上几处代码半只做了纯逻辑。本 Sprint 专门收清这些，收完写阶段总结 → 归档 03 → 开新阶段。
+>
+> **写法纪律**：每条写清 现状（🔴未做/🟡半成）+ 已落地部分 + 还差什么 + 验收标准，不写笼统勾。
+
+### Task 列表（6 块）
+
+- [ ] **6.1 C5 易混辨析卡·整卡落地** 🔴
+  - ✅ 代码半：`domain/DiscriminationCardBuilder.kt`（N 选 1 纯逻辑 + 判分，8 测，commit `91c19a3`）
+  - ⬜ 内容半：`diffExplanation` 差异说明文案（10-15 对易混，内容工程 Track-C；D12=B）+ `FormulaEntity` 承载字段
+  - ⬜ UI：`RouterReviewScreen` 加 `C5DiscriminationPane`（题干=用途/描述不泄底 + 易混选项 KaTeX + 判分 + 揭晓 diffExplanation）
+  - ⬜ 接线：`RouterReviewViewModel` 解除 C5 剔除（当前 `~L212 → false`）+ `buildC5Card`（读 CONFUSABLE 邻居喂构造器）
+  - ⬜ 验收：真机 due 一张 C5 → 易混选项出现 → 判分 → 揭晓差异说明
+
+- [ ] **6.2 七步仪式 Step 2 拆块讲解** 🔴
+  - 现状：占位（`FormulaLearnRitualScreen ~L421`「拆块 chunk 数据 Sprint 2 占位」）
+  - ⬜ 数据：`FormulaEntity` 加 `chunks` 字段（JSON，分块 latex + 讲解）+ 种子内容 + 迁移
+  - ⬜ UI：Step 2 按 chunk 分块渲染讲解（替换占位文字）
+  - ⬜ 验收：真机某公式 Step 2 显示真实分块
+
+- [ ] **6.3 七步仪式 Step 5 Worked Example** 🔴
+  - 现状：占位（`~L503/525`「补完 workedExamples 字段后显示 2 道带步骤例题」，字段不存在）
+  - ⬜ 数据：`FormulaEntity` 加 `workedExamples` 字段（JSON，题面 + 分步解）+ 内容 + 迁移
+  - ⬜ UI：Step 5 展示 2 道 worked example（替换占位）
+  - ⬜ 验收：真机某公式 Step 5 显示真实例题
+
+- [ ] **6.4 七步仪式 Step 7 迷你卡 C4/C5/C6 形态** 🟡
+  - 现状：C1/C2/C3 mini ✅；C4/C5/C6「此卡型 mini 形态暂未实装，自动通过」(`~L660`)
+  - ⬜ 补 C4/C5/C6 的 mini 卡形态（或明确决策哪些不进 mini 序列 → 从"自动通过"改为不生成）
+  - ⬜ 验收：真机结业前 mini 序列包含相应卡型或按决策排除
+
+- [ ] **6.5 #323 毙掉项隐藏·落地** 🟡
+  - ✅ 代码半：`domain/LearningItemVisibility.kt`（三态判定 + 8 测，commit `db973d6`；方案甲）
+  - ⬜ 数据：`FormulaEntity` 加 `excludedItems` 列（JSON，值取 `LearningItem.key`）+ DB v12→v13 迁移
+  - ⬜ UI：`FormulaDetailScreen` / `FormulaLearnRitualScreen` / C1 卡按三态渲染（HIDDEN 隐藏 / PLACEHOLDER 占位 / SHOWN）
+  - ⬜ 待定：「待补」呈现形态（继续占位「（暂未标注）」/ 仅 debug 可见）— 排期前问用户
+  - ⬜ 验收：真机标 `excludedItems` 的公式对应板块隐藏，未标空字段仍占位
+
+- [ ] **6.6 StudyPhase 真机验收** 🟡
+  - ✅ 设置页切阶段 / 建议进阶 / 重置 已真机验（Sprint 5）
+  - ⬜ 新卡上限拦截（关新卡阶段 / 达上限 → 七步 `capBlocked`）真机验
+  - ⬜ 复习间隔随阶段 `intervalFactor` 变化 + 交错策略（BLOCK/章内/全交错）真机验
+  - ⬜ 验收：切阶段后 DB 铁证 next 间隔缩放 + 会话顺序符合交错模式
+
+### Sprint 6 验收标准
+6 块全部 ⬜ 勾清（或经决策显式排除）+ 真机验收通过 + 全套单测绿 → 写阶段总结 → 归档 03。
 
 ---
 
 ## 内容工程 Track（独立于代码 Sprint，可并行）
 
-### Track-A：30 公式 MVP（人工标注，与 Sprint 1 Task 1.7 同步）
+### Track-A：30 公式 MVP（人工标注）— ✅ **完成**（Task 1.7，30 公式 18+ 字段全标）
 
-- 范围按 D8=C + D11=C 拆解（详见 Task 1.7）
-- 标注 18+ 字段
-- **预算**：每公式 30-60 分钟手工，30 公式 ≈ 15-30 小时
+- 范围按 D8=C + D11=C 拆解（详见 Task 1.7）；分布 21/5/4 三桶
 
-### Track-B：300-500 公式 AI 全标注（pipeline）
+### Track-B：300-500 公式 AI 全标注（pipeline）— ⬜ **未启动**
 
-- Sprint 3 后启动
-- LLM 批量生成 18+ 字段 + 抽样 10% 人工 review
+- LLM 批量生成 18+ 字段 + 抽样 10% 人工 review；质量门禁可与种子校验器（`FormulaSeedValidator`）合并
 
-### Track-C：易混对编辑工具
+### Track-C：易混对编辑工具 — ⬜ **未做（阻塞 Sprint 6.1 C5 内容半）**
 
-- Sprint 3 之前完成
-- 内部 CSV / JSON 编辑工具（不入 App）
+- 产出 `diffExplanation` 差异说明（10-15 对易混）；内部 CSV/JSON 编辑工具（不入 App）
 
-### Track-D：典型题题面 + worked example
+### Track-D：典型题题面 + worked example — 🟡 **部分**
 
-- Sprint 2-3 期间收集
-- 版权处理见 D13 决策
+- ✅ `typicalProblems` 30/30 已标（C6 卡在用）
+- ⬜ `workedExamples`（七步 Step 5 用，字段+内容都缺，阻塞 Sprint 6.3）；版权处理见 D13
 
 ---
 
-## Sprint 完成记录（待填）
+## Sprint 完成记录
 
-### Sprint 1 总结
+> 详细逐 Task 记录见各 Sprint 小节的勾选项 + commit；跨 Sprint 进度快照见
+> auto-memory `project_progress.md`。此处只留一句话状态。
 
-（待 Sprint 1 收尾后填写）
-
-### Sprint 2/3/4 总结
-
-（占位）
+| Sprint | 主干内容 | 状态 | 代表 commit |
+|---|---|---|---|
+| 1 | 数据基础 + Scene/Subject + 6 类子卡 schema + 30 公式 MVP | ✅ 完成 | (Sprint 1 系列) |
+| 2 | 七步仪式 + 复习路由器 + C1/C2/C3 + 子卡 FSRS | ✅ 主干（Step2/5 占位见 Sprint 6） | `ea976c4` |
+| 3 | C4/C6 卡型 + 错题反向 UI + C2 判错着色 + Leech | ✅ 完成 | `a54439b` |
+| 4 | 数据层地基标签化 + 公式族图谱（记忆主视图） | ✅ 完成 | `072211a` / `f156a21` |
+| 5 | StudyPhase 学习阶段切换 | ✅ 代码完成（真机验收→6.6） | `da1287a` |
+| 6 | 阶段收尾（C5/七步占位/代码半/真机） | 🔵 进行中 | — |
 
 ---
 
