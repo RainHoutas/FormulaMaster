@@ -44,6 +44,7 @@ docs/phases/
 | 4 | **七步 Step 7 迷你卡** | 🟡 C1/C2/C3 ✅；C4/C5/C6 mini 形态"自动通过" | C4/C5/C6 mini 卡形态 |
 | 5 | **#323 毙掉项隐藏** | 🟡 代码半（`LearningItemVisibility` `db973d6`） | `FormulaEntity.excludedItems` 列 + DB v13 迁移 + 详情/仪式/C1 三态渲染 |
 | 6 | **StudyPhase 真机验收** | 🟡 设置切换已验 | 新卡上限拦截 + 复习间隔/交错随阶段变化 真机验 |
+| 7 | **复习默写环节** | 🔴 MVP：恒显答案自评 | 接手写/纸笔输入（按 inputMode）+ hint 分级渐进揭示（状态机有 hintLevel，UI 未实装） |
 
 > 备注：#1/#2/#3 共同卡在**内容/数据字段**（同 C5 早期），需与内容工程 Track 协同。
 > Scene 三态（Gaokao/SelfStudy）为**规划外留位**，不计入本阶段债。

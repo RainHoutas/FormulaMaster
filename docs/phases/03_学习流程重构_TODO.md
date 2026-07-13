@@ -566,8 +566,15 @@ related:
   - ⬜ 复习间隔随阶段 `intervalFactor` 变化 + 交错策略（BLOCK/章内/全交错）真机验
   - ⬜ 验收：切阶段后 DB 铁证 next 间隔缩放 + 会话顺序符合交错模式
 
+- [ ] **6.7 复习默写环节完善** 🔴
+  - 现状：MVP —— `RouterReviewScreen ~L1096` 默写面板**恒显完整公式**让用户点「默对了/没默出」自评
+  - 🔴 **hint 分级渐进揭示未实装**：状态机跑 `hintLevel`（错1 hint1 / 错2 hint2 / 错3 blocked），但 UI 不理 hintLevel、恒显答案，与 `hintText`「首发：不看公式回想」矛盾（`~L1108 MathFormulaView` 无条件渲染完整公式）
+  - ⬜ 接输入：按 `inputMode` 路由到 `TracingCanvas`（手写）/ `PaperPenInputArea`（纸笔），而非直接露答案（注释 `~L1096`「后续 Task 接 TracingCanvas/PaperPen」）
+  - ⬜ hint 渐进：hintLevel 0 全隐 → 1 露第一块 → 2 露推导前两步，按级揭示（现只改 label 文字）
+  - ⬜ 验收：真机默写连错触发 hint1/hint2 递进揭示 + 错 3 次 blocked 红条
+
 ### Sprint 6 验收标准
-6 块全部 ⬜ 勾清（或经决策显式排除）+ 真机验收通过 + 全套单测绿 → 写阶段总结 → 归档 03。
+7 块全部 ⬜ 勾清（或经决策显式排除）+ 真机验收通过 + 全套单测绿 → 写阶段总结 → 归档 03。
 
 ---
 
