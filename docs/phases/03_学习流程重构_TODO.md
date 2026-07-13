@@ -496,6 +496,11 @@ related:
 
 - ~~**StudyPhase 阶段切换**~~ → ✅ **Sprint 5 完成**（见下）
 - **C5 易混辨析卡**：需先补 `diffExplanation` 内容（D12=B）；地基标签化后 `entry_relations` 的易混边可直接复用
+  - **✅ 代码半已落地（2026-07-13，commit `91c19a3`）**：`domain/DiscriminationCardBuilder.kt` 纯逻辑 N 选 1
+    构造器（目标 + 易混邻居 → 打乱选项 + 正确 id + 可选 diffExplanation；无易混邻居返回 null；含 `isCorrect` 判分），
+    8 单测。`diffExplanation` 做成可选入参 → **缺内容也能出卡，不再被内容卡脖子**。
+  - **留尾（回家设备场次一次做完）**：内容半 `diffExplanation` 文案（10-15 对）+ `FormulaEntity`/种子承载字段 +
+    `C5DiscriminationPane` 专属 UI + `RouterReviewViewModel` 解除 C5 剔除（当前 `line ~212` 仍 `→ false`）+ 真机验收。
 - Khan 4 级掌握度：RFC §6.2 明确推迟，不排期
 
 ---
