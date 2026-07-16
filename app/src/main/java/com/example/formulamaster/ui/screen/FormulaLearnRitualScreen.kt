@@ -212,7 +212,10 @@ fun FormulaLearnRitualScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             beyondViewportPageCount = 1,
-            // 自由前后：不锁定 Pager 滑动
+            // 仅 Step 7 巩固（page 6）关滑动：其手写默写用 TestCanvas + pointerInteropFilter（Palm Rejection），
+            // 与父级滑动存在已知不兼容（Sprint 1 踩坑），横笔画会外泄成翻页 → 该步用底部按钮/顶部指示器导航。
+            // Step 4 临摹用 TracingCanvas（detectDragGestures 消费拖拽），与滑动兼容，无需关。（2026-07-16）
+            userScrollEnabled = pagerState.currentPage != 6,
         ) { page ->
             when (page) {
                 0 -> Step1Precondition(
@@ -505,7 +508,7 @@ private fun Step3Derivation(steps: List<com.example.formulamaster.domain.model.D
 @Composable
 private fun Step4Tracing(latex: String) {
     var confirmed by remember { mutableStateOf(false) }
-    StepScaffold(title = "Step 4 · 临摹手写") {
+    StepScaffold(title = "Step 4 · 临摹手写", scrollable = false) {
         Text(
             text = "在下方画布上跟着公式临摹一遍。",
             style = MaterialTheme.typography.bodyMedium,
@@ -633,7 +636,7 @@ private fun Step7ConsolidationMini(
     onPass: () -> Unit,
     onFail: () -> Unit
 ) {
-    StepScaffold(title = "Step 7 · 巩固迷你卡") {
+    StepScaffold(title = "Step 7 · 巩固迷你卡", scrollable = false) {
         if (state.isFinished) {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -849,12 +852,14 @@ private fun MiniC3Card(
 @Composable
 private fun StepScaffold(
     title: String,
+    // 含手写画布的步骤（Step 4 临摹 / Step 7 巩固默写）须关竖滚，否则竖笔画被 verticalScroll 吃掉（2026-07-16）
+    scrollable: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
             .padding(16.dp)
     ) {
         Text(
