@@ -47,6 +47,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.C6Grading
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.DiscriminationCardBuilder
+import com.example.formulamaster.ui.component.HandwrittenAnswerArea
+import com.example.formulamaster.ui.component.rememberHandwritingConfig
 import com.example.formulamaster.domain.ClozeGrading
 import com.example.formulamaster.domain.ClozeSkeletonBuilder
 import com.example.formulamaster.domain.DerivationSelfAssessment
@@ -242,8 +244,9 @@ private fun C1RecognitionPane(
     onRate: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 路由器推下一张卡（formulaId/cardType 变）时 reveal 重置回 false
-    var revealed by rememberSaveable(action.formulaId, action.cardType) { mutableStateOf(false) }
+    // Sprint 6.8：识别改真手写→OCR→自动判分（纸笔模式自评）；判对→4 / 判错→1。
+    // 不外套 verticalScroll——TestCanvas 手写拖拽不能与滚动共存。
+    val cfg = rememberHandwritingConfig()
 
     Column(modifier = modifier.padding(16.dp)) {
         CardHeaderChips(
@@ -251,110 +254,50 @@ private fun C1RecognitionPane(
             isReinforced = isReinforced,
             isReinforcementRetest = action.isReinforcementRetest
         )
-
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = formulaTitle.ifEmpty { "（公式标题缺失）" },
             style = MaterialTheme.typography.titleLarge
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "默写这个公式的完整形式",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.elevatedCardColors()
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "回想这个公式的完整形式、适用条件、用途",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (!revealed) {
-                    Text(
-                        text = "（点击下方「看答案」露出）",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        textAlign = TextAlign.Center
-                    )
+        HandwrittenAnswerArea(
+            answerLatex = formulaLatex,
+            inputMode = cfg.inputMode,
+            lightRecognizer = cfg.light,
+            deepRecognizer = cfg.deep,
+            onGraded = { correct -> onRate(if (correct) 4 else 1) },
+            revealExtra = {
+                RevealSectionDivider()
+                SectionLabel("适用条件")
+                if (preconditions.isEmpty()) {
+                    Text("（暂未标注）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                 } else {
-                    // ① 公式本体
-                    MathFormulaView(
-                        latex = formulaLatex,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                    )
-
-                    // ② 适用条件
-                    RevealSectionDivider()
-                    SectionLabel("适用条件")
-                    if (preconditions.isEmpty()) {
-                        Text(
-                            text = "（暂未标注）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    } else {
-                        preconditions.forEach { cond ->
-                            Text(
-                                text = "• $cond",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-                    }
-
-                    // ③ 用途
-                    RevealSectionDivider()
-                    SectionLabel("用途")
-                    Text(
-                        text = purpose.ifBlank { "（暂未标注）" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (purpose.isBlank()) {
-                            MaterialTheme.colorScheme.outline
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        }
-                    )
-
-                    // ④ 口诀（仅有值时）
-                    if (!mnemonic.isNullOrBlank()) {
-                        RevealSectionDivider()
-                        SectionLabel("💡 口诀")
-                        Text(
-                            text = mnemonic,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                    preconditions.forEach { cond ->
+                        Text("• $cond", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (!revealed) {
-            Button(
-                onClick = { revealed = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("看答案")
-            }
-        } else {
-            RatingRow(onRate = { rating -> onRate(rating); revealed = false })
-        }
+                RevealSectionDivider()
+                SectionLabel("用途")
+                Text(
+                    text = purpose.ifBlank { "（暂未标注）" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (purpose.isBlank()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                )
+                if (!mnemonic.isNullOrBlank()) {
+                    RevealSectionDivider()
+                    SectionLabel("💡 口诀")
+                    Text(mnemonic, style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -1180,6 +1123,9 @@ private fun DictationPane(
     onResult: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Sprint 6.8：默写从"露答案+自评"改为真手写→OCR→自动判分（纸笔模式自评）；
+    // 同时修 6.7 的"恒显答案"——答案改到判定后揭晓，不再上来就露。
+    val cfg = rememberHandwritingConfig()
     Column(modifier = modifier.padding(16.dp)) {
         // 上次被阻断的强提醒红条
         if (action.wasPreviouslyBlocked) {
@@ -1209,49 +1155,16 @@ private fun DictationPane(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 显示完整公式作为参考答案（MVP：用户对照自评通过/没通过；后续 Task 接 TracingCanvas/PaperPen）
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "目标公式",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                MathFormulaView(
-                    latex = formulaLatex,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = { onResult(false) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("没默出")
-            }
-            Button(
-                onClick = { onResult(true) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("默对了")
-            }
-        }
+        HandwrittenAnswerArea(
+            answerLatex = formulaLatex,
+            inputMode = cfg.inputMode,
+            lightRecognizer = cfg.light,
+            deepRecognizer = cfg.deep,
+            onGraded = { correct -> onResult(correct) },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

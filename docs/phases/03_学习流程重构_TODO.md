@@ -577,11 +577,12 @@ related:
   - **背景**：全 App 的回想环节现在都是**自评**（"记得/忘了"、"默对了/没默出"、Test「请诚实核对」），无 OCR 自动比对逻辑。用户设计目标=手写模块能完整输入并判对。
   - **范围（用户拍板：统一都改）**：① 学习 Step 7 巩固 mini-C1 识别（`FormulaLearnRitualScreen.MiniC1Card`「在心里默默写」）② 复习 C1 识别卡（`C1RecognitionPane` 看答案自评）③ 复习默写收尾（`StartDictation` 面板，与 6.7 合并）
   - **按 inputMode 分流**：手写识别模式 → 手写画布 → OCR → **自动判对错**（用户拍板"先做成自动判断，有问题再改"）；纸笔自评模式 → 保留"写纸上→出答案→自评"。
-  - ⬜ 纯逻辑：`domain/` 新建答案比对器（`LatexNormalizer` 规范化两边 latex → 判等，含容错）+ 单测
-  - ⬜ 复用组件：手写作答 Composable（`TestCanvas` + 注入 `MathOcrRecognizer` 识别 → 比对器判定），封装供三处调用
-  - ⬜ 接三处：Step7 mini-C1 / 复习 C1 / 复习默写（6.7 的接输入并入此项）
-  - ⬜ 真机验收：手写模式下三处均手写→识别→自动判对错；纸笔模式保留自评
-  - **关联**：6.7（复习默写）的"接输入"并入本项一起做
+  - ✅ 纯逻辑：`domain/HandwrittenLatexGrader`（判等专用 canonical 规范化 → isMatch/isMatchAny，11 测，commit `fc75b7c`）
+  - ✅ 复用组件：`ui/component/HandwrittenAnswerArea`（手写→`TestCanvas`→OCR 候选逐块拼接→提交→比对器自动判分；纸笔→自评；`revealExtra` 槽保留条件/用途/口诀）+ `rememberHandwritingConfig()`
+  - ✅ 接三处：Step7 `MiniC1Card` / 复习 `C1RecognitionPane`（RatingRow→自动判分 4/1 + revealExtra 保留学习内容）/ 复习 `DictationPane`（顺带修 6.7"恒显答案"——答案改判定后揭晓）
+  - ✅ 编译过 + 全套单测绿；真机装机后 UI 渲染确认（复习 C1 出手写画布 + "提交自动判分"）
+  - ⏳ **实际手写→识别→判分待用户真机试**（adb 无法生成有效笔迹；按测试分工约定交互流用户自测）：手写 30 公式各卡回想，看 OCR 识别 + 自动判对错是否准；纸笔模式验自评保留
+  - **关联**：6.7 复习默写"接输入"+"不恒显答案"已并入完成；剩 hint 分级渐进揭示（6.7 单列）
 
 ### Sprint 6 验收标准
 8 块全部 ⬜ 勾清（或经决策显式排除）+ 真机验收通过 + 全套单测绿 → 写阶段总结 → 归档 03。

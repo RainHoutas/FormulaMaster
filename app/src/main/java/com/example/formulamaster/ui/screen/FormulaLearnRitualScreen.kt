@@ -61,8 +61,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.CardType
 import com.example.formulamaster.domain.ClozeSkeletonBuilder
+import com.example.formulamaster.ui.component.HandwrittenAnswerArea
 import com.example.formulamaster.ui.component.LatexChipsView
 import com.example.formulamaster.ui.component.MathFormulaView
+import com.example.formulamaster.ui.component.rememberHandwritingConfig
 import com.example.formulamaster.ui.component.TracingCanvas
 import com.example.formulamaster.ui.viewmodel.FormulaLearnRitualViewModel
 import com.example.formulamaster.ui.viewmodel.Step7State
@@ -668,29 +670,22 @@ private fun Step7ConsolidationMini(
 
 @Composable
 private fun MiniC1Card(latex: String, onPass: () -> Unit, onFail: () -> Unit) {
-    var revealed by remember { mutableStateOf(false) }
+    // Sprint 6.8：识别巩固从"心里默写自评"升级为**真手写→OCR→自动判分**（纸笔模式自评）
+    val cfg = rememberHandwritingConfig()
     ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Mini · 识别", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
-            Text("在心里默默写出这条公式", style = MaterialTheme.typography.bodyMedium)
+            Text("默写这条公式", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
-            if (revealed) {
-                MathFormulaView(
-                    latex = latex,
-                    modifier = Modifier.fillMaxWidth().height(120.dp)
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onFail, modifier = Modifier.weight(1f)) { Text("忘了") }
-                    Button(onClick = onPass, modifier = Modifier.weight(1f)) { Text("记得") }
-                }
-            } else {
-                FilledTonalButton(
-                    onClick = { revealed = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("看答案") }
-            }
+            HandwrittenAnswerArea(
+                answerLatex = latex,
+                inputMode = cfg.inputMode,
+                lightRecognizer = cfg.light,
+                deepRecognizer = cfg.deep,
+                onGraded = { correct -> if (correct) onPass() else onFail() },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
