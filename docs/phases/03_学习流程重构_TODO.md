@@ -529,12 +529,12 @@ related:
 
 ### Task 列表（6 块）
 
-- [~] **6.1 C5 易混辨析卡·整卡落地** 🟡 代码完成待真机（**方案 A 定案：全复用现有字段，不加 diffExplanation 字段/内容、不动 DB**，用户 2026-07-13 拍板"没必要重复造轮子"）
+- [x] **6.1 C5 易混辨析卡·整卡落地** ✅ **完成 + 真机验收通过（2026-07-16，commit `719fbc8`）**（方案 A：全复用现有字段，不加 diffExplanation 字段/内容、不动 DB，用户拍板"没必要重复造轮子"）
   - ✅ 代码半：`domain/DiscriminationCardBuilder.kt`（N 选 1 纯逻辑 + 判分，8 测，commit `91c19a3`）
   - ✅ 题干=目标 `purpose`（用途），选项=目标+易混邻居公式 latex，揭晓=正确公式 + `适用条件`（复用现有字段区分，无新内容）
   - ✅ 接线：`FormulaRepository.confusableNeighbors()` / `formulaIdsWithConfusable()`；`RouterReviewViewModel.buildC5Card` + 解除 C5 剔除（改 gate 为"有易混邻居才出"）+ UiState 加 `currentC5Options/CorrectId`
-  - ✅ UI：`RouterReviewScreen.C5DiscriminationPane`（用途线索 + `LatexChipsView` 单选 N 选 1 + 判分 4/1 + 揭晓正确公式+适用条件）；编译过 + 429 单测绿
-  - ⬜ **真机验收（待设备）**：due 一张 C5 → 用途题干 + 易混选项出现 → 选对/错判分 → 揭晓正确公式+条件；6 对易混各抽验
+  - ✅ UI：`RouterReviewScreen.C5DiscriminationPane`（用途线索 + `LatexChipsView` 单选 N 选 1 + 判分 4/1 + 揭晓正确公式+适用条件）
+  - ✅ **真机验收（无线 adb）**：注入 `prob_total_probability` due C5 → 复习出 C5 卡（用途题干 + 全概率/Bayes 两选项 KaTeX 正确）→ 选对判"评定 4" → 揭晓全概率公式 + 适用条件辨析要点 → 继续落库（DB 铁证 `totalReviews`0→1、`nextReviewTime` 推后）→ 正常进默写收尾
 
 - [ ] **6.2 七步仪式 Step 2 拆块讲解** 🔴
   - 现状：占位（`FormulaLearnRitualScreen ~L421`「拆块 chunk 数据 Sprint 2 占位」）
