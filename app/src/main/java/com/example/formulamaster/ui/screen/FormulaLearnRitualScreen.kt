@@ -219,7 +219,7 @@ fun FormulaLearnRitualScreen(
                     purpose = uiState.purpose,
                     preconditions = uiState.preconditions
                 )
-                1 -> Step2Chunks(latex = formula.latexCode)
+                1 -> Step2Chunks(latex = formula.latexCode, chunks = uiState.chunks)
                 2 -> Step3Derivation(steps = uiState.derivationSteps)
                 3 -> Step4Tracing(latex = formula.latexCode)
                 4 -> Step5WorkedExamplePlaceholder()
@@ -404,10 +404,13 @@ private fun Step1Precondition(
 // ══════════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun Step2Chunks(latex: String) {
+private fun Step2Chunks(
+    latex: String,
+    chunks: List<com.example.formulamaster.domain.model.FormulaChunk>
+) {
     StepScaffold(title = "Step 2 · 拆块阅读") {
         Text(
-            text = "把公式拆成几块，分别理解每一块的含义。",
+            text = "把公式拆成几块，逐块理解每一块的含义。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -416,14 +419,39 @@ private fun Step2Chunks(latex: String) {
             latex = latex,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(140.dp)
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "（拆块 chunk 数据 Sprint 2 占位，待数据补完后展示分块讲解）",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline
-        )
+        Spacer(Modifier.height(16.dp))
+
+        if (chunks.isEmpty()) {
+            Text(
+                text = "（本公式暂未拆块，待内容补完）",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        } else {
+            chunks.forEachIndexed { i, chunk ->
+                ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "第 ${i + 1} 块",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (chunk.latex.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            MathFormulaView(
+                                latex = chunk.latex,
+                                modifier = Modifier.fillMaxWidth().height(56.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(chunk.note, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (i < chunks.lastIndex) Spacer(Modifier.height(10.dp))
+            }
+        }
     }
 }
 

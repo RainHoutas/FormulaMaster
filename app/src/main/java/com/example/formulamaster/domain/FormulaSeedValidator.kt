@@ -31,7 +31,8 @@ object FormulaSeedValidator {
         val difficultyLevel: Int? = null,
         val examWeight: Int? = null,
         val appliesTo: List<String>? = null,
-        val scene: String? = null
+        val scene: String? = null,
+        val chunks: String? = null
     )
 
     private val gson = Gson()
@@ -111,6 +112,9 @@ object FormulaSeedValidator {
             // derivationSteps 元素：DerivationStepParser 用宽松 Gson（缺字段回落默认，不崩），
             // 仅要求每个元素是对象，避免 ["纯字符串"] 旧格式被静默吞成空推导。
             validateObjectArray("derivationSteps", r.derivationSteps, tag, errors)
+            // chunks 元素（Sprint 6.2）：同 derivationSteps，每元素须是 {latex, note} 对象
+            if (r.chunks != null && !isJsonArray(r.chunks)) errors += "[$tag] chunks 不是合法 JSON 数组"
+            validateObjectArray("chunks", r.chunks, tag, errors)
         }
         return errors
     }

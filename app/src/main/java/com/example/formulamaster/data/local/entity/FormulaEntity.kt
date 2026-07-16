@@ -41,6 +41,8 @@ data class FormulaEntity(
     val commonErrors: String = "[]",
     /** 可选记忆口诀 / 类比 / 费曼式解释。null 表示未标注。 */
     val mnemonic: String? = null,
+    /** JSON 对象数组（FormulaChunk）：[{latex, note}, ...]，七步 Step 2 拆块阅读用。空数组表示未标注。 */
+    val chunks: String = "[]",
     /** 1-5 考频权重，影响推送优先级。默认 3（中等）。 */
     val examWeight: Int = 3,
     /**

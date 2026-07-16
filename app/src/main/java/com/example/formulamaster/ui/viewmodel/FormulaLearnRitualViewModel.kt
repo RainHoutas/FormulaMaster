@@ -44,6 +44,7 @@ data class FormulaLearnRitualUiState(
     val purpose: String = "",
     val preconditions: List<String> = emptyList(),
     val derivationSteps: List<DerivationStep> = emptyList(),
+    val chunks: List<com.example.formulamaster.domain.model.FormulaChunk> = emptyList(),
     val clozeItems: List<ClozeItem> = emptyList(),
     val minimalClozeItem: ClozeItem? = null,
     val isLoading: Boolean = true,
@@ -102,6 +103,7 @@ class FormulaLearnRitualViewModel(
                 Gson().fromJson<List<String>>(formula.preconditions, stringListType) ?: emptyList()
             }.getOrDefault(emptyList())
             val derivationSteps = DerivationStepParser.parse(formula.derivationSteps)
+            val chunks = com.example.formulamaster.domain.FormulaChunkParser.parse(formula.chunks)
             val clozeItems = ClozeParser.parse(formula.clozeData)
             val minimalClozeItem = ClozeParser.minimalSample(clozeItems, preconditions)
             val (blocked, message) = newCardGate(appPreference.settings.value)
@@ -112,6 +114,7 @@ class FormulaLearnRitualViewModel(
                     purpose = formula.purpose,
                     preconditions = preconditions,
                     derivationSteps = derivationSteps,
+                    chunks = chunks,
                     clozeItems = clozeItems,
                     minimalClozeItem = minimalClozeItem,
                     isLoading = false,

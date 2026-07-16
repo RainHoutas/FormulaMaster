@@ -113,6 +113,7 @@ class FormulaRepository(
         val typicalProblems: String = "[]",
         val commonErrors: String = "[]",
         val mnemonic: String? = null,
+        val chunks: String = "[]",
         val examWeight: Int = 3,
         val scene: String = "KaoyanMath",
         // ── 录入格式：分类 / 关系（加载时拆原子，不落 formulas 列）────────
@@ -137,6 +138,7 @@ class FormulaRepository(
             typicalProblems = typicalProblems,
             commonErrors = commonErrors,
             mnemonic = mnemonic,
+            chunks = chunks,
             examWeight = examWeight,
             scene = scene
         )

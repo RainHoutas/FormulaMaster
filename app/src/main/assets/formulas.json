@@ -19,7 +19,12 @@
     "mnemonic": null,
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\lim_{x\\\\to 0}\", \"note\": \"x 趋于 0 时取极限（这是关键前提，x→∞ 时该式极限为 0，别混）\"}, {\"latex\": \"\\\\dfrac{\\\\sin x}{x}\", \"note\": \"分子 sin x 与分母 x 是同阶无穷小，比值趋于定值\"}, {\"latex\": \"=1\", \"note\": \"极限值为 1，是求 0/0 型的基石，也是等价无穷小 sin x∼x 的来源\"}]"
   },
   {
     "formulaId": "lim_one_plus_inv_x",
@@ -41,7 +46,12 @@
     "mnemonic": "1^∞ 型极限：先取对数，转 0×∞ 用洛必达 / 等价无穷小",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\left(1+\\\\dfrac{1}{x}\\\\right)\", \"note\": \"底数趋于 1（1+无穷小）\"}, {\"latex\": \"{}^{\\\\,x}\", \"note\": \"指数趋于 ∞，整体是 1^∞ 未定型\"}, {\"latex\": \"=e\", \"note\": \"该 1^∞ 型极限定义了自然常数 e，凑成 (1+□)^{1/□} 即用\"}]"
   },
   {
     "formulaId": "equiv_infinitesimals",
@@ -63,7 +73,12 @@
     "mnemonic": "口诀：三角反三角对指数全部 ~ x；1-cos 多 x²/2；幂次差用 α 倍",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\sin x,\\\\tan x,\\\\arcsin x,\\\\arctan x\\\\sim x\", \"note\": \"四个三角/反三角与 x 同为一阶无穷小\"}, {\"latex\": \"e^{x}-1\\\\sim x,\\\\ \\\\ln(1+x)\\\\sim x\", \"note\": \"指数与对数型也是一阶，等价于 x\"}, {\"latex\": \"1-\\\\cos x\\\\sim \\\\dfrac{x^{2}}{2}\", \"note\": \"唯一的二阶无穷小，系数 1/2 是高频失分点\"}, {\"latex\": \"(1+x)^{\\\\alpha}-1\\\\sim \\\\alpha x\", \"note\": \"幂型，系数是指数 α（如 √(1+x)-1∼x/2）\"}]"
   },
   {
     "formulaId": "lhopital_rule",
@@ -85,7 +100,12 @@
     "mnemonic": null,
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\dfrac{f(x)}{g(x)}\", \"note\": \"必须先是 0/0 或 ∞/∞ 未定型才能用\"}, {\"latex\": \"\\\\dfrac{f'(x)}{g'(x)}\", \"note\": \"分子分母各自求导（不是商的求导！）后再取极限\"}]"
   },
   {
     "formulaId": "rolle_thm",
@@ -107,7 +127,12 @@
     "mnemonic": null,
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"f(a)=f(b)\", \"note\": \"前提：两端点函数值相等（比 Lagrange 多这个约束）\"}, {\"latex\": \"\\\\exists\\\\,\\\\xi\\\\in(a,b),\\\\ f'(\\\\xi)=0\", \"note\": \"结论：内部至少有一点切线水平\"}]"
   },
   {
     "formulaId": "lagrange_thm",
@@ -129,7 +154,12 @@
     "mnemonic": null,
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"f(b)-f(a)\", \"note\": \"函数在区间上的总增量\"}, {\"latex\": \"=f'(\\\\xi)(b-a)\", \"note\": \"等于内部某点的瞬时变化率 × 区间长度（Rolle 是其 f(a)=f(b) 的特例）\"}]"
   },
   {
     "formulaId": "taylor_thm_lagrange_rem",
@@ -151,7 +181,12 @@
     "mnemonic": "余项：求极限用 Peano（o(...)）；估值/证不等式用 Lagrange（含 ξ）",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\sum_{k=0}^{n}\\\\dfrac{f^{(k)}(x_{0})}{k!}(x-x_{0})^{k}\", \"note\": \"n 次泰勒多项式，用各阶导数在 x₀ 的值逼近\"}, {\"latex\": \"\\\\dfrac{f^{(n+1)}(\\\\xi)}{(n+1)!}(x-x_{0})^{n+1}\", \"note\": \"Lagrange 余项：逼近的误差，ξ 在 x₀ 与 x 之间\"}]"
   },
   {
     "formulaId": "newton_leibniz",
@@ -173,7 +208,12 @@
     "mnemonic": null,
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\int_{a}^{b}f(x)\\\\,dx\", \"note\": \"定积分（一个数值 = 曲边梯形面积）\"}, {\"latex\": \"=F(b)-F(a)\", \"note\": \"等于任一原函数在两端点的差，把积分化为求原函数\"}]"
   },
   {
     "formulaId": "taylor_must_memorize_set",
@@ -195,7 +235,12 @@
     "mnemonic": "武忠祥版本：必背 5（e^x / sin x / cos x / ln(1+x) / (1+x)^α）；其他全部 x→变形即可推出，不要重背",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"e^{x}=\\\\sum\\\\dfrac{x^{n}}{n!}\", \"note\": \"指数：系数 1/n!，全正项\"}, {\"latex\": \"\\\\sin x,\\\\cos x\", \"note\": \"三角：带 (-1)^n 交错，sin 取奇次幂、cos 取偶次幂\"}, {\"latex\": \"\\\\ln(1+x)=\\\\sum(-1)^{n-1}\\\\dfrac{x^{n}}{n}\", \"note\": \"对数：交错，系数 1/n（收敛域 (-1,1]）\"}, {\"latex\": \"(1+x)^{\\\\alpha}\", \"note\": \"二项：系数是广义组合数 C(α,n)\"}]"
   },
   {
     "formulaId": "integral_basic_table",
@@ -217,7 +262,12 @@
     "mnemonic": null,
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\int x^{n}\\\\,dx=\\\\dfrac{x^{n+1}}{n+1}+C\\\\ (n\\\\neq-1)\", \"note\": \"幂函数：指数加一除以新指数；n=-1 单列为 ln|x|\"}, {\"latex\": \"\\\\int e^{x}dx=e^{x}+C,\\\\ \\\\int a^{x}dx=\\\\dfrac{a^{x}}{\\\\ln a}+C\", \"note\": \"指数型，注意 a^x 要除以 ln a\"}, {\"latex\": \"\\\\int\\\\sin x\\\\,dx=-\\\\cos x+C\", \"note\": \"三角：sin 积分带负号是易错点\"}, {\"latex\": \"\\\\int\\\\dfrac{dx}{1+x^{2}}=\\\\arctan x,\\\\ \\\\int\\\\dfrac{dx}{\\\\sqrt{1-x^{2}}}=\\\\arcsin x\", \"note\": \"反三角来源，凑此二型是核心技巧\"}]"
   },
   {
     "formulaId": "int_by_parts",
@@ -239,7 +289,12 @@
     "mnemonic": "选 u 口诀：反对幂指三（反三角>对数>幂>指数>三角）",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\int u\\\\,dv\", \"note\": \"把被积式拆成 u 和 dv 两部分（选 u 遵循『反对幂三指』）\"}, {\"latex\": \"=uv-\\\\int v\\\\,du\", \"note\": \"换成 uv 减去一个更好算的新积分\"}]"
   },
   {
     "formulaId": "int_substitution",
@@ -261,7 +316,12 @@
     "mnemonic": "三角代换记忆：√(a²-x²) sin / √(a²+x²) tan / √(x²-a²) sec",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"u=\\\\varphi(x)\", \"note\": \"令中间变量 u，把复杂被积式变简单\"}, {\"latex\": \"\\\\int f(\\\\varphi(x))\\\\varphi'(x)\\\\,dx=\\\\int f(u)\\\\,du\", \"note\": \"凑出 φ'(x)dx=du（第一类凑微分 / 第二类反解 x）\"}]"
   },
   {
     "formulaId": "variable_limit_int_deriv",
@@ -283,7 +343,12 @@
     "mnemonic": "上限正下限负：(d/dx)∫_α^β = f(β)·β' - f(α)·α'",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\dfrac{d}{dx}\\\\int_{\\\\alpha(x)}^{\\\\beta(x)}f(t)\\\\,dt\", \"note\": \"对『上下限含 x』的变限积分求导\"}, {\"latex\": \"f(\\\\beta(x))\\\\beta'(x)-f(\\\\alpha(x))\\\\alpha'(x)\", \"note\": \"代上限×上限导 减 代下限×下限导（链式法则）\"}]"
   },
   {
     "formulaId": "mean_value_thm_integral",
@@ -305,7 +370,12 @@
     "mnemonic": null,
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\int_{a}^{b}f(x)\\\\,dx\", \"note\": \"定积分（面积）\"}, {\"latex\": \"=f(\\\\xi)(b-a)\", \"note\": \"等于某一点函数值 × 区间长（f(ξ) 是 f 在区间上的平均值）\"}]"
   },
   {
     "formulaId": "first_order_separable_ode",
@@ -327,7 +397,12 @@
     "mnemonic": null,
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\dfrac{dy}{dx}=g(x)h(y)\", \"note\": \"右端能拆成『只含 x』×『只含 y』才可分离\"}, {\"latex\": \"\\\\int\\\\dfrac{dy}{h(y)}=\\\\int g(x)\\\\,dx+C\", \"note\": \"把 y 挪左、x 挪右各自积分\"}]"
   },
   {
     "formulaId": "first_order_linear_ode",
@@ -349,7 +424,12 @@
     "mnemonic": "三步走：标准化 → 积分因子 μ=e^{∫P} → y = (1/μ)·[∫μQ + C]",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"y'+P(x)y=Q(x)\", \"note\": \"标准形：y' 与 y 都是一次（Q=0 为齐次）\"}, {\"latex\": \"e^{-\\\\int P\\\\,dx}\\\\left[\\\\int Q\\\\,e^{\\\\int P\\\\,dx}\\\\,dx+C\\\\right]\", \"note\": \"通解公式，核心是积分因子 e^{∫P dx}\"}]"
   },
   {
     "formulaId": "double_integral_polar",
@@ -371,7 +451,12 @@
     "mnemonic": "极坐标记忆：x=r cos θ, y=r sin θ, dxdy=r dr dθ（多个 r）",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"x=r\\\\cos\\\\theta,\\\\ y=r\\\\sin\\\\theta\", \"note\": \"直角坐标换极坐标（圆域 / 含 x²+y² 时首选）\"}, {\"latex\": \"dxdy\\\\to r\\\\,drd\\\\theta\", \"note\": \"面积微元多一个因子 r（雅可比行列式），漏 r 是致命错\"}]"
   },
   {
     "formulaId": "det_row_expansion",
@@ -393,7 +478,12 @@
     "mnemonic": null,
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\det(A)=\\\\sum_{j=1}^{n}a_{ij}A_{ij}\", \"note\": \"沿第 i 行展开：各元素 × 其代数余子式求和\"}, {\"latex\": \"A_{ij}=(-1)^{i+j}M_{ij}\", \"note\": \"代数余子式 = 符号 (-1)^{i+j} × 余子式 M_{ij}\"}]"
   },
   {
     "formulaId": "matrix_rank_props",
@@ -415,7 +505,12 @@
     "mnemonic": null,
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"r(A+B)\\\\le r(A)+r(B)\", \"note\": \"和的秩不超过秩的和\"}, {\"latex\": \"r(AB)\\\\le\\\\min(r(A),r(B))\", \"note\": \"乘积的秩不超过两者较小者\"}, {\"latex\": \"r(A^{T}A)=r(A)\", \"note\": \"A^TA 与 A 同秩（最小二乘常用）\"}]"
   },
   {
     "formulaId": "eigen_definition",
@@ -437,7 +532,12 @@
     "mnemonic": "迹 = 特征值和；行列式 = 特征值积（tr & det 与 λ 的快速关系）",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"A\\\\mathbf{x}=\\\\lambda\\\\mathbf{x},\\\\ \\\\mathbf{x}\\\\neq\\\\mathbf{0}\", \"note\": \"A 作用在特征向量上只是伸缩 λ 倍（方向不变）\"}, {\"latex\": \"\\\\det(\\\\lambda I-A)=0\", \"note\": \"特征方程：由此解出全部特征值 λ\"}]"
   },
   {
     "formulaId": "symmetric_orthogonal_diag",
@@ -459,7 +559,12 @@
     "mnemonic": "实对称 → 必正交对角化；步骤：求 λ → 求 ξ → Schmidt 正交化 → 单位化 → 拼 Q",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "2", "3"]
+    "appliesTo": [
+      "1",
+      "2",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"A=A^{T}\", \"note\": \"前提：A 是实对称矩阵\"}, {\"latex\": \"Q^{T}AQ=\\\\Lambda\", \"note\": \"必可正交对角化，Q 由标准正交特征向量拼成（Q^{-1}=Q^T）\"}]"
   },
   {
     "formulaId": "prob_normal_pdf",
@@ -481,7 +586,11 @@
     "mnemonic": "标准化口诀：减均值，除标准差（Z = (X-μ)/σ）；E=μ, D=σ²",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "3"]
+    "appliesTo": [
+      "1",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\dfrac{1}{\\\\sigma\\\\sqrt{2\\\\pi}}\", \"note\": \"归一化系数，保证全积分为 1\"}, {\"latex\": \"\\\\exp\\\\left[-\\\\dfrac{(x-\\\\mu)^{2}}{2\\\\sigma^{2}}\\\\right]\", \"note\": \"钟形主体：μ 定中心（对称轴），σ 定胖瘦\"}]"
   },
   {
     "formulaId": "prob_poisson_pmf",
@@ -503,7 +612,11 @@
     "mnemonic": "Po(λ)：E(X)=D(X)=λ（期望方差合一）",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "3"]
+    "appliesTo": [
+      "1",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"\\\\dfrac{\\\\lambda^{k}}{k!}\", \"note\": \"取 k 次的相对权重，λ 是平均发生次数\"}, {\"latex\": \"e^{-\\\\lambda}\", \"note\": \"归一化因子，保证所有 k 的概率和为 1；E(X)=D(X)=λ\"}]"
   },
   {
     "formulaId": "prob_expectation_variance_props",
@@ -525,7 +638,11 @@
     "mnemonic": "线性性：E 取出 a 和 b；D 取出 a²（b 不影响 D）",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "3"]
+    "appliesTo": [
+      "1",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"E(aX+b)=aE(X)+b\", \"note\": \"期望是线性的，常数 b 照搬\"}, {\"latex\": \"D(aX+b)=a^{2}D(X)\", \"note\": \"方差：系数要平方，常数 b 不影响波动\"}, {\"latex\": \"D(X+Y)=D(X)+D(Y)+2\\\\,\\\\mathrm{Cov}(X,Y)\", \"note\": \"和的方差多一项协方差；独立时才可去掉\"}]"
   },
   {
     "formulaId": "prob_total_probability",
@@ -547,7 +664,11 @@
     "mnemonic": "全概率：从原因 Bᵢ 到结果 A（正向）；Bayes：从结果 A 到原因 Bᵢ（反向）",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "3"]
+    "appliesTo": [
+      "1",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"P(A)\", \"note\": \"要求的目标事件概率\"}, {\"latex\": \"\\\\sum_{i=1}^{n}\", \"note\": \"对所有原因 Bᵢ（样本空间的一组划分）求和\"}, {\"latex\": \"P(B_{i})P(A|B_{i})\", \"note\": \"第 i 条路径贡献：原因发生概率 × 该原因下 A 的条件概率\"}]"
   },
   {
     "formulaId": "prob_bayes",
@@ -569,7 +690,11 @@
     "mnemonic": "Bayes 反方向：知 A 求 Bᵢ；分子 = 先验·似然，分母 = 全概率",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1", "3"]
+    "appliesTo": [
+      "1",
+      "3"
+    ],
+    "chunks": "[{\"latex\": \"P(B_{i}|A)\", \"note\": \"已知结果 A 发生，反推是原因 Bᵢ 的后验概率\"}, {\"latex\": \"\\\\text{分子 }P(B_{i})P(A|B_{i})\", \"note\": \"第 i 条路径的贡献（先验 × 似然）\"}, {\"latex\": \"\\\\text{分母 }\\\\sum_{j}P(B_{j})P(A|B_{j})\", \"note\": \"全概率公式，即 P(A)，做归一化\"}]"
   },
   {
     "formulaId": "green_thm",
@@ -591,7 +716,10 @@
     "mnemonic": "Green：∮Pdx+Qdy → ∬(Q_x - P_y)；记忆：q_x 减 p_y（按字母顺序）",
     "examWeight": 5,
     "scene": "KaoyanMath",
-    "appliesTo": ["1"]
+    "appliesTo": [
+      "1"
+    ],
+    "chunks": "[{\"latex\": \"\\\\oint_{L}P\\\\,dx+Q\\\\,dy\", \"note\": \"沿闭曲线 L 的第二类曲线积分（L 取正向、逆时针）\"}, {\"latex\": \"\\\\iint_{D}\\\\left(\\\\dfrac{\\\\partial Q}{\\\\partial x}-\\\\dfrac{\\\\partial P}{\\\\partial y}\\\\right)dxdy\", \"note\": \"化为 L 所围区域 D 上的二重积分（∂Q/∂x−∂P/∂y）\"}]"
   },
   {
     "formulaId": "line_integral_2nd_kind",
@@ -613,7 +741,10 @@
     "mnemonic": "第二类有方向（向量场点积切向量）；第一类无方向（标量沿弧长）",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1"]
+    "appliesTo": [
+      "1"
+    ],
+    "chunks": "[{\"latex\": \"x=x(t),\\\\ y=y(t):\\\\ \\\\alpha\\\\to\\\\beta\", \"note\": \"把曲线 L 参数化，t 从 α 到 β\"}, {\"latex\": \"P\\\\,x'(t)+Q\\\\,y'(t)\\\\,dt\", \"note\": \"dx=x'(t)dt、dy=y'(t)dt 代入，化为对 t 的定积分\"}]"
   },
   {
     "formulaId": "series_convergence_tests",
@@ -635,7 +766,10 @@
     "mnemonic": "比值 < 1 收 / > 1 散 / = 1 不定；p-级数 p>1 收 / ≤1 散",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1"]
+    "appliesTo": [
+      "1"
+    ],
+    "chunks": "[{\"latex\": \"a_{n}\\\\le b_{n}:\\\\ \\\\sum b_{n}\\\\text{ 收敛}\\\\Rightarrow\\\\sum a_{n}\\\\text{ 收敛}\", \"note\": \"比较判别：大的收敛则小的收敛（反之小的发散则大的发散）\"}, {\"latex\": \"\\\\rho=\\\\lim\\\\dfrac{a_{n+1}}{a_{n}}\", \"note\": \"比值判别：算相邻项之比的极限 ρ\"}, {\"latex\": \"\\\\rho<1\\\\text{ 收},\\\\ \\\\rho>1\\\\text{ 散},\\\\ \\\\rho=1\\\\text{ 不定}\", \"note\": \"ρ<1 收敛、>1 发散、=1 失效需换法\"}]"
   },
   {
     "formulaId": "power_series_expansion",
@@ -657,6 +791,9 @@
     "mnemonic": "R = 1/lim |a_{n+1}/a_n|（分母是比值，分子是 1）",
     "examWeight": 4,
     "scene": "KaoyanMath",
-    "appliesTo": ["1"]
+    "appliesTo": [
+      "1"
+    ],
+    "chunks": "[{\"latex\": \"\\\\sum_{n=0}^{\\\\infty}a_{n}(x-x_{0})^{n}\", \"note\": \"以 x₀ 为中心的幂级数一般形式\"}, {\"latex\": \"R=\\\\dfrac{1}{\\\\lim\\\\left|\\\\frac{a_{n+1}}{a_{n}}\\\\right|}\", \"note\": \"收敛半径 R：系数比值极限的倒数，|x−x₀|<R 内收敛\"}]"
   }
 ]

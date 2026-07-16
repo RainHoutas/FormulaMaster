@@ -42,7 +42,7 @@ import com.example.formulamaster.data.local.entity.TagEntity
         EntryTagCrossRef::class,
         EntryRelationEntity::class
     ],
-    version = 12,
+    version = 13,   // v13：FormulaEntity 加 chunks（Sprint 6.2 拆块）
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
