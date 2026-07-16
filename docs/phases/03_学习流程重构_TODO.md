@@ -536,7 +536,7 @@ related:
   - ✅ UI：`RouterReviewScreen.C5DiscriminationPane`（用途线索 + `LatexChipsView` 单选 N 选 1 + 判分 4/1 + 揭晓正确公式+适用条件）
   - ✅ **真机验收（无线 adb）**：注入 `prob_total_probability` due C5 → 复习出 C5 卡（用途题干 + 全概率/Bayes 两选项 KaTeX 正确）→ 选对判"评定 4" → 揭晓全概率公式 + 适用条件辨析要点 → 继续落库（DB 铁证 `totalReviews`0→1、`nextReviewTime` 推后）→ 正常进默写收尾
 
-- [~] **6.2 七步仪式 Step 2 拆块讲解** 🟡 代码+内容完成待真机
+- [x] **6.2 七步仪式 Step 2 拆块讲解** ✅ **完成 + 真机验收通过（2026-07-16，commit `dd83d56`）**——起 Rolle 七步仪式 Step 2 显示两块讲解卡（f(a)=f(b)→前提 / ∃ξ f'(ξ)=0→结论，KaTeX+中文正确）
   - ✅ 数据模型：`domain/model/FormulaChunk`(latex+note) + `domain/FormulaChunkParser`（对照 DerivationStep，4 测）
   - ✅ 字段+迁移：`FormulaEntity.chunks` + DB **v12→v13**（destructive 重灌）；种子 DTO + `FormulaSeedValidator` 加 chunks 校验
   - ✅ 内容：**30 公式全部拆块**（每条 2-4 块，latex 片段 + 中文讲解，写进 `formulas.json`）
