@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.formulamaster.domain.C6Grading
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.DiscriminationCardBuilder
 import com.example.formulamaster.domain.ClozeGrading
 import com.example.formulamaster.domain.ClozeSkeletonBuilder
 import com.example.formulamaster.domain.DerivationSelfAssessment
@@ -174,6 +175,22 @@ fun RouterReviewScreen(
                                 problem = uiState.currentC6Problem,
                                 options = uiState.currentC6Options,
                                 correctIds = uiState.currentC6CorrectIds,
+                                isReinforced = isReinforced,
+                                onRate = viewModel::rate,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            ShowCardPane(action, title, latex, isReinforced, viewModel::rate, Modifier.fillMaxSize())
+                        }
+
+                        // C5 易混：无易混邻居（选项空）时回落通用骨架
+                        CardType.C5_Discrimination -> if (uiState.currentC5Options.size >= 2) {
+                            C5DiscriminationPane(
+                                action = action,
+                                stem = uiState.currentFormula?.purpose.orEmpty(),
+                                options = uiState.currentC5Options,
+                                correctId = uiState.currentC5CorrectId,
+                                preconditions = uiState.currentPreconditions,
                                 isReinforced = isReinforced,
                                 onRate = viewModel::rate,
                                 modifier = Modifier.fillMaxSize()
@@ -852,7 +869,109 @@ private fun C6TypicalProblemPane(
     }
 }
 
-// ── ShowCard 通用骨架（C2-C6 暂用） ─────────────────────────────────────────────
+// ── C5 易混辨析卡：用途线索 → N 选 1 相近公式 → 揭晓正确公式 + 适用条件 ──────────────
+@Composable
+private fun C5DiscriminationPane(
+    action: ReviewRouter.NextAction.ShowCard,
+    stem: String,
+    options: List<DiscriminationCardBuilder.Option>,
+    correctId: String?,
+    preconditions: List<String>,
+    isReinforced: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedIndex by remember(action.formulaId, action.cardType) { mutableStateOf<Int?>(null) }
+    var submitted by remember(action.formulaId, action.cardType) { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        CardHeaderChips(action.cardType, isReinforced, action.isReinforcementRetest)
+        Spacer(Modifier.height(12.dp))
+        Text("易混辨析", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(16.dp))
+
+        // ── 题干：用途线索 ───────────────────────────────────────────────────
+        ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                SectionLabel("适用场景（用途）")
+                Text(stem, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            text = "下列哪条公式匹配上述用途？（相近公式，仔细辨析）",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        if (!submitted) {
+            LatexChipsView(
+                items = options.map { it.latex },
+                selectable = true,
+                singleSelect = true,
+                onSelectionChanged = { set -> selectedIndex = set.firstOrNull() },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(16.dp))
+            val picked = selectedIndex != null
+            Button(
+                onClick = { submitted = true },
+                enabled = picked,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (picked) "提交" else "请选一条")
+            }
+        } else {
+            val correct = selectedIndex?.let { options.getOrNull(it)?.formulaId } == correctId
+            Surface(
+                color = if (correct) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (correct) "正确 · 系统评定 4" else "不对 · 系统评定 1",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // 揭晓正确公式（复用现有字段：适用条件 = 辨析要点，帮用户看清区别）
+            Spacer(Modifier.height(12.dp))
+            Text("正确公式：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            options.firstOrNull { it.formulaId == correctId }?.let { opt ->
+                Text(opt.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+                MathFormulaView(
+                    latex = opt.latex,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(90.dp)
+                )
+            }
+            if (preconditions.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                SectionLabel("适用条件（辨析要点）")
+                preconditions.forEach {
+                    Text("· $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 2.dp))
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { onRate(if (correct) 4 else 1) }, modifier = Modifier.fillMaxWidth()) {
+                Text("继续")
+            }
+        }
+    }
+}
+
+// ── ShowCard 通用骨架（C2 无挖空 / C4 无推导 / C5 无易混邻居 / C6 数据不足 回落用） ────────────
 
 @Composable
 private fun ShowCardPane(

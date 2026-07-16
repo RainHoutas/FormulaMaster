@@ -529,12 +529,12 @@ related:
 
 ### Task 列表（6 块）
 
-- [ ] **6.1 C5 易混辨析卡·整卡落地** 🔴
+- [~] **6.1 C5 易混辨析卡·整卡落地** 🟡 代码完成待真机（**方案 A 定案：全复用现有字段，不加 diffExplanation 字段/内容、不动 DB**，用户 2026-07-13 拍板"没必要重复造轮子"）
   - ✅ 代码半：`domain/DiscriminationCardBuilder.kt`（N 选 1 纯逻辑 + 判分，8 测，commit `91c19a3`）
-  - ⬜ 内容半：`diffExplanation` 差异说明文案（10-15 对易混，内容工程 Track-C；D12=B）+ `FormulaEntity` 承载字段
-  - ⬜ UI：`RouterReviewScreen` 加 `C5DiscriminationPane`（题干=用途/描述不泄底 + 易混选项 KaTeX + 判分 + 揭晓 diffExplanation）
-  - ⬜ 接线：`RouterReviewViewModel` 解除 C5 剔除（当前 `~L212 → false`）+ `buildC5Card`（读 CONFUSABLE 邻居喂构造器）
-  - ⬜ 验收：真机 due 一张 C5 → 易混选项出现 → 判分 → 揭晓差异说明
+  - ✅ 题干=目标 `purpose`（用途），选项=目标+易混邻居公式 latex，揭晓=正确公式 + `适用条件`（复用现有字段区分，无新内容）
+  - ✅ 接线：`FormulaRepository.confusableNeighbors()` / `formulaIdsWithConfusable()`；`RouterReviewViewModel.buildC5Card` + 解除 C5 剔除（改 gate 为"有易混邻居才出"）+ UiState 加 `currentC5Options/CorrectId`
+  - ✅ UI：`RouterReviewScreen.C5DiscriminationPane`（用途线索 + `LatexChipsView` 单选 N 选 1 + 判分 4/1 + 揭晓正确公式+适用条件）；编译过 + 429 单测绿
+  - ⬜ **真机验收（待设备）**：due 一张 C5 → 用途题干 + 易混选项出现 → 选对/错判分 → 揭晓正确公式+条件；6 对易混各抽验
 
 - [ ] **6.2 七步仪式 Step 2 拆块讲解** 🔴
   - 现状：占位（`FormulaLearnRitualScreen ~L421`「拆块 chunk 数据 Sprint 2 占位」）

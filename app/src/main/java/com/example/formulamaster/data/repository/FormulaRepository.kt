@@ -38,6 +38,26 @@ class FormulaRepository(
     suspend fun getById(id: String): FormulaEntity? = formulaDao.getById(id)
 
     /**
+     * 与某公式相连的**易混（CONFUSABLE）邻居公式**（无向边，取对端 id 再查实体）。
+     * 供 C5 易混辨析卡凑干扰项池。无易混边时返回空列表。
+     */
+    suspend fun confusableNeighbors(formulaId: String): List<FormulaEntity> = withContext(Dispatchers.IO) {
+        val neighborIds = entryRelationDao.getTouching(formulaId)
+            .filter { it.type == EntryRelationType.CONFUSABLE.code }
+            .map { if (it.fromId == formulaId) it.toId else it.fromId }
+            .filter { it != formulaId }
+            .distinct()
+        neighborIds.mapNotNull { formulaDao.getById(it) }
+    }
+
+    /** 全部含易混边的公式 id 集合（供 C5 gate：无易混邻居的公式不出 C5）。 */
+    suspend fun formulaIdsWithConfusable(): Set<String> = withContext(Dispatchers.IO) {
+        entryRelationDao.getByType(EntryRelationType.CONFUSABLE.code)
+            .flatMap { listOf(it.fromId, it.toId) }
+            .toSet()
+    }
+
+    /**
      * 按考研数学子科目过滤公式列表（Sprint 4 起走 namespace=exam 标签 JOIN）。
      * 切换 [subject] 后 Flow 立即推送新结果。
      */

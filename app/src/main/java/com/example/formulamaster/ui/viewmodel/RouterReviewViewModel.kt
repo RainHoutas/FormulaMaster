@@ -16,6 +16,7 @@ import com.example.formulamaster.data.repository.ReviewEventProcessor
 import com.example.formulamaster.data.repository.ReviewSessionRepository
 import com.example.formulamaster.data.repository.SessionInit
 import com.example.formulamaster.domain.CardType
+import com.example.formulamaster.domain.DiscriminationCardBuilder
 import com.example.formulamaster.domain.Interleave
 import com.example.formulamaster.domain.SessionInterleaver
 import com.example.formulamaster.domain.UseScene
@@ -72,6 +73,10 @@ data class RouterReviewUiState(
     val currentC6Options: List<C6Option> = emptyList(),
     /** C6 当前题面的正确公式 id 集合（当前恒为单条 = 题面所属公式）。 */
     val currentC6CorrectIds: Set<String> = emptySet(),
+    /** C5 易混辨析卡的 N 选 1 选项（目标 + 易混邻居，已打乱）；KaTeX 渲染。仅 C5 ShowCard 且数据齐时非空。 */
+    val currentC5Options: List<DiscriminationCardBuilder.Option> = emptyList(),
+    /** C5 当前卡的正确公式 id（= 目标公式）。 */
+    val currentC5CorrectId: String? = null,
     /** 当前公式是否为顽固节点（leech）：卡顶展示「顽固」chip，与记忆卡/详情横幅同一判定。 */
     val currentIsLeech: Boolean = false,
     val isSessionEnd: Boolean = false,
@@ -193,12 +198,13 @@ class RouterReviewViewModel(
         // 1. 按 formulaId 聚合
         val grouped: Map<String, List<SubCardStateEntity>> = dueSubCards.groupBy { it.formulaId }
 
-        // 未实装 / 无法出真卡的卡型剔除，避免回落成通用"看答案"（2026-07-01 真机验收）：
-        //   - C5 易混辨析：延后 Sprint 4（缺 diffExplanation 内容 + 无专属面板）
+        // 无法出真卡的卡型剔除，避免回落成通用"看答案"（2026-07-01 真机验收）：
+        //   - C5 易混辨析：仅当该公式有易混邻居才出（否则无干扰项，buildC5Card 回落）
         //   - C6 题型反查：需同章 ≥2 公式才能凑候选池，否则 buildC6Card 回落
         val subjectFormulas = formulaRepository.observeFormulasFor(settings.kaoyanSubject).first()
         val chapterCounts = subjectFormulas.groupingBy { it.chapter }.eachCount()
         val chapterOf = subjectFormulas.associate { it.formulaId to it.chapter }
+        val confusableIds = formulaRepository.formulaIdsWithConfusable()
 
         // 2. 每个公式内部排序：isReinforced=true 优先 + nextReviewTime 升序；并过滤未实装卡型
         val dueCardsByFormula: Map<String, List<CardType>> = grouped.mapValues { (formulaId, cards) ->
@@ -209,7 +215,7 @@ class RouterReviewViewModel(
             ).mapNotNull { CardType.fromCode(it.cardType) }
                 .filter { ct ->
                     when (ct) {
-                        CardType.C5_Discrimination -> false
+                        CardType.C5_Discrimination -> formulaId in confusableIds
                         CardType.C6_TypicalProblem -> chapterCount >= 2
                         else -> true
                     }
@@ -310,6 +316,17 @@ class RouterReviewViewModel(
             null
         }
 
+        // C5 易混辨析卡：题干=目标用途，选项=目标+易混邻居（entry_relations 的 confusable 边）
+        val c5 = if (
+            action is ReviewRouter.NextAction.ShowCard &&
+            action.cardType == CardType.C5_Discrimination &&
+            formula != null
+        ) {
+            buildC5Card(formula)
+        } else {
+            null
+        }
+
         // 顽固判定：聚合 lapses（子卡求和）+ 近 7 日错题标记，与记忆卡/详情横幅同一 LeechDetector
         val isLeech = if (formula != null) {
             val lapses = subCardDao.getByFormulaId(formula.formulaId).sumOf { it.lapses }
@@ -333,6 +350,8 @@ class RouterReviewViewModel(
                 currentC6Problem    = c6?.problem.orEmpty(),
                 currentC6Options    = c6?.options.orEmpty(),
                 currentC6CorrectIds = c6?.correctIds.orEmpty(),
+                currentC5Options    = c5?.options.orEmpty(),
+                currentC5CorrectId  = c5?.correctId,
                 currentIsLeech      = isLeech,
                 isSessionEnd        = action is ReviewRouter.NextAction.SessionEnd,
                 initType            = initType ?: it.initType
@@ -374,6 +393,25 @@ class RouterReviewViewModel(
         val options: List<C6Option>,
         val correctIds: Set<String>
     )
+
+    /**
+     * 组装一张 C5 易混辨析卡（复用现有字段，无新内容/字段）：
+     * 题干 = 目标 [FormulaEntity.purpose]；选项 = 目标 + 易混邻居（CONFUSABLE 边）的公式 latex，打乱。
+     * 无易混邻居（`DiscriminationCardBuilder.build` 返回 null）或**用途为空**（无题干线索）时返回 null，
+     * 由调用方回落通用骨架。`diffExplanation` 传 null——揭晓阶段由 UI 复用正确公式的用途/适用条件展示区别。
+     */
+    private suspend fun buildC5Card(formula: FormulaEntity): DiscriminationCardBuilder.Card? {
+        if (formula.purpose.isBlank()) return null
+        val neighbors = formulaRepository.confusableNeighbors(formula.formulaId)
+        if (neighbors.isEmpty()) return null
+        return DiscriminationCardBuilder.build(
+            target = DiscriminationCardBuilder.Option(formula.formulaId, formula.title, formula.latexCode),
+            stem = formula.purpose,
+            confusables = neighbors.map {
+                DiscriminationCardBuilder.Option(it.formulaId, it.title, it.latexCode)
+            },
+        )
+    }
 
     companion object {
         /** C2 每张卡目标挖空数（自适应 min(此值, 公式总挖空数)，用户拍板 2026-05-28）。 */

@@ -15,3 +15,6 @@
 local.properties
 .claude
 docs/.obsidian/
+
+# 防御：Robolectric maven 本地仓配置跑偏时会在此建字面量目录
+app/${user.home}/
