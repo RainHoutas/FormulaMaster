@@ -575,12 +575,14 @@ related:
   - ⬜ 复习间隔随阶段 `intervalFactor` 变化 + 交错策略（BLOCK/章内/全交错）真机验
   - ⬜ 验收：切阶段后 DB 铁证 next 间隔缩放 + 会话顺序符合交错模式
 
-- [ ] **6.7 复习默写环节完善** 🔴
-  - 现状：MVP —— `RouterReviewScreen ~L1096` 默写面板**恒显完整公式**让用户点「默对了/没默出」自评
-  - 🔴 **hint 分级渐进揭示未实装**：状态机跑 `hintLevel`（错1 hint1 / 错2 hint2 / 错3 blocked），但 UI 不理 hintLevel、恒显答案，与 `hintText`「首发：不看公式回想」矛盾（`~L1108 MathFormulaView` 无条件渲染完整公式）
-  - ⬜ 接输入：按 `inputMode` 路由到 `TracingCanvas`（手写）/ `PaperPenInputArea`（纸笔），而非直接露答案（注释 `~L1096`「后续 Task 接 TracingCanvas/PaperPen」）
-  - ⬜ hint 渐进：hintLevel 0 全隐 → 1 露第一块 → 2 露推导前两步，按级揭示（现只改 label 文字）
-  - ⬜ 验收：真机默写连错触发 hint1/hint2 递进揭示 + 错 3 次 blocked 红条
+- [x] **6.7 复习默写环节完善** ✅ **代码完成（2026-07-21，远程纯代码场次）** — ⏳ 真机验收待做
+  - ✅ **接输入 + 不恒显答案**：已由 **6.8** 完成（`DictationPane` 改 `HandwrittenAnswerArea` 手写→OCR→自动判分，答案改判定后揭晓）。
+  - ✅ **hint 分级渐进揭示（chunks 驱动，用户拍板 2026-07-21）**：`RouterReviewViewModel` UiState 加 `currentChunks`
+    （`FormulaChunkParser` 在 VM 解析，不在 Composable 碰 JSON）；`DictationPane` 按 `hintLevel` 逐块揭示——
+    `revealCount = hintLevel.coerceIn(0, chunks.size)`，露 `chunks[0 until revealCount]`（片段 KaTeX + 讲解），
+    与学习 Step2 分块一致；无 chunks 数据则不揭示（空值驱动）。`hintText` 改为 chunks 措辞。
+  - ✅ 编译过 + 全套单测绿。
+  - ⏳ **真机验收待做**：默写连错 → hint1 露第一块、hint2 露前两块递进 + 错 3 次 blocked 红条。
 
 - [x] **6.8 回想环节改"手写→OCR→自动对照"（弃纯自评）** ✅ **完成·用户真机确认能用（2026-07-16，commit `fc75b7c`+`fe98ac4`）**（交互优化转改进点池）
   - **背景**：全 App 的回想环节现在都是**自评**（"记得/忘了"、"默对了/没默出"、Test「请诚实核对」），无 OCR 自动比对逻辑。用户设计目标=手写模块能完整输入并判对。

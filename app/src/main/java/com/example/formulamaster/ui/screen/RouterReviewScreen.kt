@@ -55,6 +55,7 @@ import com.example.formulamaster.domain.DerivationSelfAssessment
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
 import com.example.formulamaster.domain.model.DerivationStep
+import com.example.formulamaster.domain.model.FormulaChunk
 import com.example.formulamaster.ui.component.LatexChipsView
 import com.example.formulamaster.ui.component.MathFormulaView
 import com.example.formulamaster.ui.viewmodel.C6Option
@@ -211,6 +212,7 @@ fun RouterReviewScreen(
                         action = action,
                         formulaTitle = uiState.currentFormula?.title.orEmpty(),
                         formulaLatex = uiState.currentFormula?.latexCode.orEmpty(),
+                        chunks = uiState.currentChunks,
                         onResult = viewModel::submitDictation,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -1107,12 +1109,16 @@ private fun DictationPane(
     action: ReviewRouter.NextAction.StartDictation,
     formulaTitle: String,
     formulaLatex: String,
+    chunks: List<FormulaChunk>,
     onResult: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Sprint 6.8：默写从"露答案+自评"改为真手写→OCR→自动判分（纸笔模式自评）；
     // 同时修 6.7 的"恒显答案"——答案改到判定后揭晓，不再上来就露。
+    // Sprint 6.7：hint 分级渐进——按 hintLevel 逐块揭示 chunks（错1露第一块/错2露前两块…），
+    // 与学习 Step2 分块一致；无 chunks 数据则不揭示（空值驱动）。
     val cfg = rememberHandwritingConfig()
+    val revealCount = action.hintLevel.coerceIn(0, chunks.size)
     Column(modifier = modifier.padding(16.dp)) {
         // 上次被阻断的强提醒红条
         if (action.wasPreviouslyBlocked) {
@@ -1138,11 +1144,45 @@ private fun DictationPane(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = hintText(action.hintLevel),
+            text = hintText(action.hintLevel, chunks.size),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(modifier = Modifier.height(16.dp))
+
+        // hint 分级渐进揭示：逐块露出 chunks[0 until revealCount]（片段 KaTeX + 讲解），随连错递增
+        if (revealCount > 0) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        text = "💡 提示 · 已露前 $revealCount/${chunks.size} 块",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    chunks.take(revealCount).forEach { chunk ->
+                        Spacer(Modifier.height(8.dp))
+                        if (chunk.latex.isNotBlank()) {
+                            MathFormulaView(
+                                latex = chunk.latex,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (chunk.note.isNotBlank()) {
+                            Text(
+                                text = chunk.note,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         HandwrittenAnswerArea(
             answerLatex = formulaLatex,
@@ -1155,11 +1195,10 @@ private fun DictationPane(
     }
 }
 
-private fun hintText(hintLevel: Int): String = when (hintLevel) {
-    0 -> "首发：不看公式回想"
-    1 -> "Hint 1：露公式第一块"
-    2 -> "Hint 2：露推导前两步"
-    else -> "Hint $hintLevel"
+private fun hintText(hintLevel: Int, chunkCount: Int): String = when {
+    hintLevel <= 0 -> "首发：不看公式回想"
+    chunkCount == 0 -> "再想想（本公式无分块提示）"
+    else -> "Hint $hintLevel：已露前 ${minOf(hintLevel, chunkCount)} 块，接着默"
 }
 
 // ── 会话结束页 ─────────────────────────────────────────────────────────────────

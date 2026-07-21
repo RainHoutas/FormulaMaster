@@ -24,10 +24,12 @@ import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.LeechDetector
 import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.DerivationStepParser
+import com.example.formulamaster.domain.FormulaChunkParser
 import com.example.formulamaster.domain.ReviewCardAvailability
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
 import com.example.formulamaster.domain.model.DerivationStep
+import com.example.formulamaster.domain.model.FormulaChunk
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +60,12 @@ data class RouterReviewUiState(
     val currentSubCard: SubCardStateEntity? = null,
     /** [currentFormula].preconditions 解析后的条件列表（C1/C3 露出展示用，避免 Composable 内解析 JSON）。 */
     val currentPreconditions: List<String> = emptyList(),
+    /**
+     * [currentFormula].chunks 解析后的拆块列表（默写 hint 分级渐进用，Sprint 6.7）。
+     * 默写连错时按 hintLevel 逐块揭示（hint1 露 chunks[0]、hint2 露 chunks[0..1]…），与学习 Step2 分块一致。
+     * 在 VM 内用 [FormulaChunkParser] 解析（不在 Composable 解析 JSON）。
+     */
+    val currentChunks: List<FormulaChunk> = emptyList(),
     /**
      * C2 加权 cloze 卡本轮抽中的挖空（按 index 升序）。仅当 [pendingAction] 是 C2 ShowCard 时非空。
      * 在 VM 内用 [ClozeParser.weightedSample] 抽样（不在 Composable 解析/采样）；每张卡稳定一次。
@@ -303,6 +311,9 @@ class RouterReviewViewModel(
             }.getOrDefault(emptyList())
         }.orEmpty()
 
+        // 默写 hint 分级渐进（Sprint 6.7）：拆块解析，按 hintLevel 逐块揭示
+        val chunks: List<FormulaChunk> = formula?.let { FormulaChunkParser.parse(it.chunks) }.orEmpty()
+
         // C2 加权 cloze：抽 min(3, 总挖空数) 个空，mustBlank 优先（weightedSample 内部保证）
         val clozeBlanks: List<ClozeItem> = if (
             action is ReviewRouter.NextAction.ShowCard &&
@@ -366,6 +377,7 @@ class RouterReviewViewModel(
                 currentFormula      = formula,
                 currentSubCard      = subCard,
                 currentPreconditions = preconditions,
+                currentChunks       = chunks,
                 currentClozeBlanks  = clozeBlanks,
                 currentDerivationSteps = derivationSteps,
                 currentC6Problem    = c6?.problem.orEmpty(),
