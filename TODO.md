@@ -1,6 +1,6 @@
 # Formula Master — 项目导航
 
-> **📍 当前位置**：学习流程重构阶段（03）· Sprint 1-5 主干完成，**Sprint 6 收尾进行中**（C5 卡型 + 七步仪式 2.5 步占位 + 若干代码半未落地，详见下方「收尾清单」）。
+> **📍 当前位置**：学习流程重构阶段（03）· Sprint 1-5 主干完成，**Sprint 6 收尾进行中**（已收：C5 卡型✅ / Step2 拆块✅ / 手写召回✅ / 空值驱动隐藏✅代码；剩：Step5 例题 · Step7 迷你卡 · 默写 hint 分级 · StudyPhase 真机，详见下方「收尾清单」）。
 >
 > 本文件是**指针 + 全局结构图**。查具体任务进度请打开对应阶段 TODO。
 
@@ -38,15 +38,15 @@ docs/phases/
 
 | # | 项 | 现状 | 还差 |
 |---|---|---|---|
-| 1 | **C5 易混辨析卡** | 🔴 代码半（`DiscriminationCardBuilder` `91c19a3`）；复习中被剔除、无专属面板 | 内容 `diffExplanation` + `C5DiscriminationPane` UI + 解除 VM 剔除(`RouterReviewViewModel ~L212`) + 真机 |
-| 2 | **七步 Step 2 拆块讲解** | 🔴 占位（无数据无 UI） | `chunk` 数据字段 + 分块讲解 UI |
+| 1 | **C5 易混辨析卡** | ✅ 完成 + 真机验收通过（`719fbc8`） | — |
+| 2 | **七步 Step 2 拆块讲解** | ✅ 完成 + 真机验收通过（`dd83d56`） | — |
 | 3 | **七步 Step 5 Worked Example** | 🔴 占位（`workedExamples` 字段不存在） | 字段 + 内容 + 例题 UI |
-| 4 | **七步 Step 7 迷你卡** | 🟡 C1/C2/C3 ✅；C4/C5/C6 mini 形态"自动通过" | C4/C5/C6 mini 卡形态 |
-| 5 | **#323 毙掉项隐藏** | 🟡 代码半（`LearningItemVisibility` `db973d6`） | `FormulaEntity.excludedItems` 列 + DB v13 迁移 + 详情/仪式/C1 三态渲染 |
+| 4 | **七步 Step 7 迷你卡** | 🟡 C1/C2/C3 ✅；C4/C5/C6 mini 形态"自动通过" | C4/C5/C6 mini 卡形态（空值处理复用 6.5 规则） |
+| 5 | **板块/卡片空值驱动隐藏（原 #323）** | ✅ 代码完成（2026-07-21，`ReviewCardAvailability` + 仪式动态步数）；⏳ 真机验收待 | 造缺板块数据的公式真机验（少步/不出卡/不显占位）|
 | 6 | **StudyPhase 真机验收** | 🟡 设置切换已验 | 新卡上限拦截 + 复习间隔/交错随阶段变化 真机验 |
 | 7 | **复习默写环节** | 🔴 MVP：恒显答案自评 | 接手写/纸笔输入（按 inputMode）+ hint 分级渐进揭示（状态机有 hintLevel，UI 未实装） |
 
-> 备注：#1/#2/#3 共同卡在**内容/数据字段**（同 C5 早期），需与内容工程 Track 协同。
+> 备注：#3 卡在**内容/数据字段**（`workedExamples` 60 道例题），需与内容工程 Track 协同。
 > Scene 三态（Gaokao/SelfStudy）为**规划外留位**，不计入本阶段债。
 
 ---

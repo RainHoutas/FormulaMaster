@@ -274,22 +274,19 @@ private fun C1RecognitionPane(
             deepRecognizer = cfg.deep,
             onGraded = { correct -> onRate(if (correct) 4 else 1) },
             revealExtra = {
-                RevealSectionDivider()
-                SectionLabel("适用条件")
-                if (preconditions.isEmpty()) {
-                    Text("（暂未标注）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-                } else {
+                // 空值驱动（Sprint 6.5）：某板块无数据就省略，不再显"（暂未标注）"占位
+                if (preconditions.isNotEmpty()) {
+                    RevealSectionDivider()
+                    SectionLabel("适用条件")
                     preconditions.forEach { cond ->
                         Text("• $cond", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
-                RevealSectionDivider()
-                SectionLabel("用途")
-                Text(
-                    text = purpose.ifBlank { "（暂未标注）" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (purpose.isBlank()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
-                )
+                if (purpose.isNotBlank()) {
+                    RevealSectionDivider()
+                    SectionLabel("用途")
+                    Text(purpose, style = MaterialTheme.typography.bodyMedium)
+                }
                 if (!mnemonic.isNullOrBlank()) {
                     RevealSectionDivider()
                     SectionLabel("💡 口诀")
@@ -501,26 +498,16 @@ private fun C3PreconditionPane(
 
         ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(16.dp)) {
+                // 空值驱动（Sprint 6.5）：C3 已按 preconditions 非空门控入场；用途空则省略，不显占位
                 SectionLabel("适用条件")
-                if (preconditions.isEmpty()) {
-                    Text(
-                        "（暂未标注）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                } else {
-                    preconditions.forEach {
-                        Text("• $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-                    }
+                preconditions.forEach {
+                    Text("• $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
                 }
-                RevealSectionDivider()
-                SectionLabel("用途")
-                Text(
-                    text = purpose.ifBlank { "（暂未标注）" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (purpose.isBlank()) MaterialTheme.colorScheme.outline
-                    else MaterialTheme.colorScheme.onSurface
-                )
+                if (purpose.isNotBlank()) {
+                    RevealSectionDivider()
+                    SectionLabel("用途")
+                    Text(purpose, style = MaterialTheme.typography.bodyMedium)
+                }
                 if (revealed) {
                     RevealSectionDivider()
                     SectionLabel("公式")

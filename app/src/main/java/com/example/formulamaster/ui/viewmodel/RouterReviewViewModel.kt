@@ -24,6 +24,7 @@ import com.example.formulamaster.domain.ErrorMarkTally
 import com.example.formulamaster.domain.LeechDetector
 import com.example.formulamaster.domain.ClozeParser
 import com.example.formulamaster.domain.DerivationStepParser
+import com.example.formulamaster.domain.ReviewCardAvailability
 import com.example.formulamaster.domain.ReviewRouter
 import com.example.formulamaster.domain.model.ClozeItem
 import com.example.formulamaster.domain.model.DerivationStep
@@ -127,6 +128,11 @@ class RouterReviewViewModel(
     private fun parseWrongIds(json: String): List<String> =
         runCatching { Gson().fromJson<List<String>>(json, stringListType) }.getOrNull() ?: emptyList()
 
+    /** 解析 JSON 字符串数组（用途/条件/题面等），滤空白后返回；损坏返回空。用于"有无数据"判定。 */
+    private fun jsonStrList(json: String): List<String> =
+        runCatching { Gson().fromJson<List<String>>(json, stringListType) }.getOrNull()
+            ?.filter { it.isNotBlank() } ?: emptyList()
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
@@ -198,27 +204,42 @@ class RouterReviewViewModel(
         // 1. 按 formulaId 聚合
         val grouped: Map<String, List<SubCardStateEntity>> = dueSubCards.groupBy { it.formulaId }
 
-        // 无法出真卡的卡型剔除，避免回落成通用"看答案"（2026-07-01 真机验收）：
-        //   - C5 易混辨析：仅当该公式有易混邻居才出（否则无干扰项，buildC5Card 回落）
-        //   - C6 题型反查：需同章 ≥2 公式才能凑候选池，否则 buildC6Card 回落
+        // 空值驱动剔除：某卡型在该公式没有对应数据 → 不出该卡（否则回落成通用"看答案"，
+        // 或凑不出干扰项/题面。用户拍板 2026-07-21 Sprint 6.5：有数据才出，全空则隐藏该卡/该公式）。
+        //   - C1 识别：公式本体恒有 → 恒出
+        //   - C2 加权 cloze：需 clozeData 有挖空
+        //   - C3 条件先行：需 preconditions 非空（否则无"条件"可先行）
+        //   - C4 推导：需 derivationSteps 非空
+        //   - C5 易混辨析：需有易混邻居 且 purpose 非空（题干线索，与 buildC5Card 一致）
+        //   - C6 题型反查：需同章 ≥2 公式（候选池） 且 typicalProblems 非空（题面，与 buildC6Card 一致）
         val subjectFormulas = formulaRepository.observeFormulasFor(settings.kaoyanSubject).first()
         val chapterCounts = subjectFormulas.groupingBy { it.chapter }.eachCount()
         val chapterOf = subjectFormulas.associate { it.formulaId to it.chapter }
+        val formulaById = subjectFormulas.associateBy { it.formulaId }
         val confusableIds = formulaRepository.formulaIdsWithConfusable()
 
-        // 2. 每个公式内部排序：isReinforced=true 优先 + nextReviewTime 升序；并过滤未实装卡型
+        // 2. 每个公式内部排序：isReinforced=true 优先 + nextReviewTime 升序；并按数据存在性过滤卡型
         val dueCardsByFormula: Map<String, List<CardType>> = grouped.mapValues { (formulaId, cards) ->
             val chapterCount = chapterOf[formulaId]?.let { chapterCounts[it] } ?: 0
+            val f = formulaById[formulaId]   // 找不到（跨 subject 兜底）→ 保守不隐藏
             cards.sortedWith(
                 compareByDescending<SubCardStateEntity> { it.isReinforced }
                     .thenBy { it.nextReviewTime }
             ).mapNotNull { CardType.fromCode(it.cardType) }
                 .filter { ct ->
-                    when (ct) {
-                        CardType.C5_Discrimination -> formulaId in confusableIds
-                        CardType.C6_TypicalProblem -> chapterCount >= 2
-                        else -> true
-                    }
+                    if (f == null) return@filter true   // 找不到公式（跨 subject 兜底）→ 保守不隐藏
+                    ReviewCardAvailability.isAvailable(
+                        ct,
+                        ReviewCardAvailability.FormulaData(
+                            hasCloze = ClozeParser.parse(f.clozeData).isNotEmpty(),
+                            hasPreconditions = jsonStrList(f.preconditions).isNotEmpty(),
+                            hasDerivation = DerivationStepParser.parse(f.derivationSteps).isNotEmpty(),
+                            hasPurpose = f.purpose.isNotBlank(),
+                            hasConfusable = formulaId in confusableIds,
+                            hasTypicalProblems = jsonStrList(f.typicalProblems).isNotEmpty(),
+                            chapterPoolSize = chapterCount,
+                        )
+                    )
                 }
         }.filterValues { it.isNotEmpty() }   // 过滤后无卡可考的公式剔除
 

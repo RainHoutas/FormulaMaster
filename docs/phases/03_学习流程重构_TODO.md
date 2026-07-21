@@ -555,12 +555,19 @@ related:
   - ⬜ 补 C4/C5/C6 的 mini 卡形态（或明确决策哪些不进 mini 序列 → 从"自动通过"改为不生成）
   - ⬜ 验收：真机结业前 mini 序列包含相应卡型或按决策排除
 
-- [ ] **6.5 #323 毙掉项隐藏·落地** 🟡
-  - ✅ 代码半：`domain/LearningItemVisibility.kt`（三态判定 + 8 测，commit `db973d6`；方案甲）
-  - ⬜ 数据：`FormulaEntity` 加 `excludedItems` 列（JSON，值取 `LearningItem.key`）+ DB v12→v13 迁移
-  - ⬜ UI：`FormulaDetailScreen` / `FormulaLearnRitualScreen` / C1 卡按三态渲染（HIDDEN 隐藏 / PLACEHOLDER 占位 / SHOWN）
-  - ⬜ 待定：「待补」呈现形态（继续占位「（暂未标注）」/ 仅 debug 可见）— 排期前问用户
-  - ⬜ 验收：真机标 `excludedItems` 的公式对应板块隐藏，未标空字段仍占位
+- [x] **6.5 板块/卡片空值驱动隐藏** ✅ **代码完成（2026-07-21，远程纯代码场次）** — ⏳ 真机验收待做
+  - ⚠ **方案 2026-07-21 用户重新拍板：改「空值驱动」，弃原方案甲 `excludedItems` 显式标记**。
+    规则：有数据→显示 / 部分缺→只显有的 / 整步骤·整卡数据全空→隐藏该步骤·该卡。不加 DB 列、不加占位、不加 debug 开关。
+    → 原 `domain/LearningItemVisibility.kt`（三态 + 8 测，`db973d6`）**已删**（方案废弃）。
+  - ✅ **复习卡**：新建 `domain/ReviewCardAvailability.kt`（纯判定 + 8 测：C1 恒出 / C2 需 cloze / C3 需 preconditions /
+    C4 需 derivation / C5 需易混邻居+purpose / C6 需同章池≥2+题面）；`RouterReviewViewModel.buildSessionInputs`
+    卡型过滤改调它（并补上原先漏查的 C5-purpose / C6-题面，堵住"过门控却 buildXxx 回落成通用看答案"漏洞）。
+  - ✅ **七步仪式动态步数**：`FormulaLearnRitualScreen` 加 `RitualStep` 枚举 + `visibleRitualSteps()`；
+    pager `pageCount` / 顶部指示器 / 底栏结业判定 / 关滑动判定（认「巩固」步不认写死 page 6）全随动态步走。
+  - ✅ **C1/C3 露出区**：空板块「（暂未标注）」占位改为直接省略。FormulaDetail 本就省略空板块，无需改。
+  - ✅ 编译过 + 全套单测绿（含新增 8 测）。
+  - ⏳ **真机验收待做**：造缺某板块数据的公式 → 仪式少对应步 / 复习不出对应卡 / 露出区不显占位。
+  - 关联：Step7 迷你卡 C4/C5/C6 的空值处理归 **6.4**（同一规则延伸）。
 
 - [ ] **6.6 StudyPhase 真机验收** 🟡
   - ✅ 设置页切阶段 / 建议进阶 / 重置 已真机验（Sprint 5）

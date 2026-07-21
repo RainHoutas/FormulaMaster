@@ -149,7 +149,12 @@ fun FormulaLearnRitualScreen(
     }
 
     val formula = uiState.formula!!
-    val pagerState = rememberPagerState(pageCount = { 7 })
+    // 空值驱动：该公式实际有数据的步骤（无对应数据的步骤自动不出现，Sprint 6.5）
+    val visibleSteps = remember(
+        formula.formulaId, uiState.purpose, uiState.preconditions,
+        uiState.chunks, uiState.derivationSteps, uiState.minimalClozeItem
+    ) { visibleRitualSteps(uiState) }
+    val pagerState = rememberPagerState(pageCount = { visibleSteps.size })
     val scope = rememberCoroutineScope()
 
     // 维护"哪些步骤已访问过" → StepIndicator 用于自由前后；当前 step 和已访问 step 可点
@@ -173,6 +178,7 @@ fun FormulaLearnRitualScreen(
                     }
                 )
                 StepIndicator(
+                    labels = visibleSteps.map { it.label },
                     currentStep = pagerState.currentPage,
                     maxVisitedStep = maxVisitedStep,
                     onStepClick = { step ->
@@ -187,6 +193,7 @@ fun FormulaLearnRitualScreen(
         bottomBar = {
             RitualBottomBar(
                 currentStep = pagerState.currentPage,
+                isLastStep = pagerState.currentPage >= visibleSteps.lastIndex,
                 step7Finished = uiState.step7.isFinished,
                 onPrev = {
                     scope.launch {
@@ -197,7 +204,7 @@ fun FormulaLearnRitualScreen(
                 },
                 onNext = {
                     scope.launch {
-                        if (pagerState.currentPage < 6) {
+                        if (pagerState.currentPage < visibleSteps.lastIndex) {
                             pagerState.animateScrollToPage(pagerState.currentPage + 1)
                         }
                     }
@@ -212,25 +219,26 @@ fun FormulaLearnRitualScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             beyondViewportPageCount = 1,
-            // 仅 Step 7 巩固（page 6）关滑动：其手写默写用 TestCanvas + pointerInteropFilter（Palm Rejection），
+            // 仅「巩固」步关滑动：其手写默写用 TestCanvas + pointerInteropFilter（Palm Rejection），
             // 与父级滑动存在已知不兼容（Sprint 1 踩坑），横笔画会外泄成翻页 → 该步用底部按钮/顶部指示器导航。
-            // Step 4 临摹用 TracingCanvas（detectDragGestures 消费拖拽），与滑动兼容，无需关。（2026-07-16）
-            userScrollEnabled = pagerState.currentPage != 6,
+            // 临摹用 TracingCanvas（detectDragGestures 消费拖拽），与滑动兼容，无需关。（2026-07-16）
+            // 步骤动态后按步骤类型判定，不再认写死的 page 6（Sprint 6.5）。
+            userScrollEnabled = visibleSteps.getOrNull(pagerState.currentPage) != RitualStep.CONSOLIDATION,
         ) { page ->
-            when (page) {
-                0 -> Step1Precondition(
+            when (visibleSteps[page]) {
+                RitualStep.CONDITION -> Step1Precondition(
                     purpose = uiState.purpose,
                     preconditions = uiState.preconditions
                 )
-                1 -> Step2Chunks(latex = formula.latexCode, chunks = uiState.chunks)
-                2 -> Step3Derivation(steps = uiState.derivationSteps)
-                3 -> Step4Tracing(latex = formula.latexCode)
-                4 -> Step5WorkedExamplePlaceholder()
-                5 -> Step6MinimalCloze(
+                RitualStep.CHUNK -> Step2Chunks(latex = formula.latexCode, chunks = uiState.chunks)
+                RitualStep.DERIVATION -> Step3Derivation(steps = uiState.derivationSteps)
+                RitualStep.TRACING -> Step4Tracing(latex = formula.latexCode)
+                RitualStep.EXAMPLE -> Step5WorkedExamplePlaceholder()
+                RitualStep.CLOZE -> Step6MinimalCloze(
                     minimalItem = uiState.minimalClozeItem,
                     fullLatex = formula.latexCode
                 )
-                6 -> Step7ConsolidationMini(
+                RitualStep.CONSOLIDATION -> Step7ConsolidationMini(
                     state = uiState.step7,
                     purpose = uiState.purpose,
                     preconditions = uiState.preconditions,
@@ -245,17 +253,47 @@ fun FormulaLearnRitualScreen(
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 动态步骤：空值驱动（用户拍板 2026-07-21，Sprint 6.5）
+//   规则：某步骤在数据库有对应数据才出现；部分子块缺就显有的；整步数据全空则隐藏该步。
+//   [TRACING] 临摹 / [CONSOLIDATION] 巩固 依赖公式本体，恒有数据故恒显（巩固=结业门）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+private enum class RitualStep(val label: String) {
+    CONDITION("条件"),
+    CHUNK("拆块"),
+    DERIVATION("推导"),
+    TRACING("临摹"),
+    EXAMPLE("例题"),
+    CLOZE("填空"),
+    CONSOLIDATION("巩固"),
+}
+
+/** 按当前公式实际有的数据算出要显示的步骤（空值驱动隐藏，见 [RitualStep]）。 */
+private fun visibleRitualSteps(
+    uiState: com.example.formulamaster.ui.viewmodel.FormulaLearnRitualUiState
+): List<RitualStep> = buildList {
+    if (uiState.purpose.isNotBlank() || uiState.preconditions.isNotEmpty()) add(RitualStep.CONDITION)
+    if (uiState.chunks.isNotEmpty()) add(RitualStep.CHUNK)
+    if (uiState.derivationSteps.isNotEmpty()) add(RitualStep.DERIVATION)
+    add(RitualStep.TRACING)                          // 临摹公式本体，恒有数据
+    // EXAMPLE（Step5 worked example）字段尚未落地（见 6.3）→ 目前无数据，恒隐；6.3 补字段后按数据显示
+    if (uiState.minimalClozeItem != null) add(RitualStep.CLOZE)
+    add(RitualStep.CONSOLIDATION)                    // 巩固=结业门，恒显
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 顶部 StepIndicator + 底栏 BottomBar
 // ══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun StepIndicator(
+    labels: List<String>,
     currentStep: Int,
     maxVisitedStep: Int,
     onStepClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val stepLabels = listOf("条件", "拆块", "推导", "临摹", "例题", "填空", "巩固")
+    val stepLabels = labels
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -305,6 +343,7 @@ private fun StepIndicator(
 @Composable
 private fun RitualBottomBar(
     currentStep: Int,
+    isLastStep: Boolean,
     step7Finished: Boolean,
     onPrev: () -> Unit,
     onNext: () -> Unit,
@@ -324,7 +363,7 @@ private fun RitualBottomBar(
             modifier = Modifier.weight(1f)
         ) { Text("上一步") }
 
-        if (currentStep == 6 && step7Finished) {
+        if (isLastStep && step7Finished) {
             Button(
                 onClick = onComplete,
                 modifier = Modifier.weight(1f)
@@ -332,9 +371,9 @@ private fun RitualBottomBar(
         } else {
             FilledTonalButton(
                 onClick = onNext,
-                enabled = currentStep < 6,
+                enabled = !isLastStep,
                 modifier = Modifier.weight(1f)
-            ) { Text(if (currentStep == 6) "完成第 7 步后结业" else "下一步") }
+            ) { Text(if (isLastStep) "完成巩固后结业" else "下一步") }
         }
     }
 }
