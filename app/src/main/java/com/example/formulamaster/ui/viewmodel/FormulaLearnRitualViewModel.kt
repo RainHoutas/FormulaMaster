@@ -108,6 +108,16 @@ class FormulaLearnRitualViewModel(
             val minimalClozeItem = ClozeParser.minimalSample(clozeItems, preconditions)
             val (blocked, message) = newCardGate(appPreference.settings.value)
 
+            // Step7 巩固序列空值驱动（Sprint 6.4 + 6.5）：有对应数据的卡型才进 deck。
+            //   C1 手写默写公式本体（恒有）/ C2 需挖空 / C3 需条件 / C4 需推导（Sprint 6.4 新加）。
+            //   C5 易混 / C6 题型：首次编码偏早（需跨公式知识），有意不进巩固，交给复习（用户拍板 2026-07-21）。
+            val miniDeck = buildList {
+                add(CardType.C1_Recognition)
+                if (clozeItems.isNotEmpty()) add(CardType.C2_Cloze)
+                if (preconditions.isNotEmpty()) add(CardType.C3_Precondition)
+                if (derivationSteps.isNotEmpty()) add(CardType.C4_Derivation)
+            }
+
             _uiState.update {
                 it.copy(
                     formula = formula,
@@ -117,6 +127,7 @@ class FormulaLearnRitualViewModel(
                     chunks = chunks,
                     clozeItems = clozeItems,
                     minimalClozeItem = minimalClozeItem,
+                    step7 = Step7State(pendingDeck = miniDeck),
                     isLoading = false,
                     capBlocked = blocked,
                     capMessage = message

@@ -81,7 +81,7 @@ import kotlinx.coroutines.launch
  *  4. 临摹手写（TracingCanvas + 手动确认）
  *  5. Worked Example × 2（Sprint 2 占位）
  *  6. 最小填空预热（ClozeParser.minimalSample）
- *  7. 巩固迷你卡序列（C1+C2+C3 mini-card + 重做队列）
+ *  7. 巩固迷你卡序列（C1+C2+C3+C4 mini-card，空值驱动，错答入重做队列；C5/C6 有意排除）
  *
  * UI 结构：顶部 StepIndicator（自由前后）+ HorizontalPager 一屏一步。
  * 用户在 Step 7 全 3 张 mini-card 通过后，底栏出现「结业」按钮 → 触发 [completeRitual]。
@@ -244,6 +244,7 @@ fun FormulaLearnRitualScreen(
                     preconditions = uiState.preconditions,
                     latex = formula.latexCode,
                     clozeItems = uiState.clozeItems,
+                    derivationSteps = uiState.derivationSteps,
                     onPass = { viewModel.step7Pass() },
                     onFail = { viewModel.step7Fail() }
                 )
@@ -662,7 +663,7 @@ private fun Step6MinimalCloze(
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Step 7: 巩固迷你卡序列（mini C1 + C2 + C3，错答入重做队列）
+// Step 7: 巩固迷你卡序列（mini C1 + C2 + C3 + C4，空值驱动入 deck，错答入重做队列；C5/C6 有意排除）
 // ══════════════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -672,6 +673,7 @@ private fun Step7ConsolidationMini(
     preconditions: List<String>,
     latex: String,
     clozeItems: List<com.example.formulamaster.domain.model.ClozeItem>,
+    derivationSteps: List<com.example.formulamaster.domain.model.DerivationStep>,
     onPass: () -> Unit,
     onFail: () -> Unit
 ) {
@@ -728,9 +730,14 @@ private fun Step7ConsolidationMini(
                     onPass = onPass,
                     onFail = onFail
                 )
+                CardType.C4_Derivation -> MiniC4Card(
+                    steps = derivationSteps,
+                    onPass = onPass,
+                    onFail = onFail
+                )
                 else -> {
-                    // C4/C5/C6 在 Sprint 2 暂不参与 mini-card 序列
-                    Text("此卡型 mini 形态暂未实装，自动通过。", style = MaterialTheme.typography.bodySmall)
+                    // C5 易混 / C6 题型：有意不进巩固序列（首次编码偏早，交给复习，用户拍板 2026-07-21）。
+                    // deck 构建时已排除，此分支仅防御兜底。
                     LaunchedEffect(current) { onPass() }
                 }
             }
@@ -878,6 +885,49 @@ private fun MiniC3Card(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onFail, modifier = Modifier.weight(1f)) { Text("再看看") }
                     Button(onClick = onPass, modifier = Modifier.weight(1f)) { Text("理解了") }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Mini · 推导（Sprint 6.4）：回想这条公式怎么推出来 → 「看推导」揭晓推导链 → 自评「推出来了 / 没推出来」。
+ * 巩固自评不算 FSRS 分，只驱动 onPass/onFail（错答入本轮重做队列）。仅在公式有 derivationSteps 时进 deck。
+ */
+@Composable
+private fun MiniC4Card(
+    steps: List<com.example.formulamaster.domain.model.DerivationStep>,
+    onPass: () -> Unit,
+    onFail: () -> Unit
+) {
+    var revealed by remember { mutableStateOf(false) }
+    ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Mini · 推导", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(8.dp))
+            Text("回想这条公式是怎么一步步推出来的。", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(12.dp))
+            if (!revealed) {
+                Button(onClick = { revealed = true }, modifier = Modifier.fillMaxWidth()) { Text("看推导") }
+            } else {
+                steps.forEachIndexed { idx, step ->
+                    Text(
+                        text = "第 ${idx + 1} 步",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (step.latex.isNotBlank()) {
+                        MathFormulaView(latex = step.latex, modifier = Modifier.fillMaxWidth())
+                    }
+                    if (step.note.isNotBlank()) {
+                        Text(step.note, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onFail, modifier = Modifier.weight(1f)) { Text("没推出来") }
+                    Button(onClick = onPass, modifier = Modifier.weight(1f)) { Text("推出来了") }
                 }
             }
         }
